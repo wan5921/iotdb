@@ -73,6 +73,16 @@ public class QueryFileManager {
     Iterator<TsFileResource> iterator = resources.iterator();
     while (iterator.hasNext()) {
       TsFileResource tsFileResource = iterator.next();
+      
+      // 打印数据文件路径和 TsFileResource 起始时间戳
+      if (DEBUG_LOGGER.isDebugEnabled()) {
+        DEBUG_LOGGER.debug(
+            "Query ID {}: File path {}, Start timestamp {}",
+            queryId,
+            tsFileResource.getTsFile().getAbsolutePath(),
+            tsFileResource.getTimeIndex().getMinStartTime());
+      }
+      
       boolean isClosed = tsFileResource.isClosed();
       addFilePathToMap(queryId, tsFileResource, isClosed);
 
