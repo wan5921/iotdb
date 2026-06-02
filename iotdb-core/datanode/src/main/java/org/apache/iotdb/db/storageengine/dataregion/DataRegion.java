@@ -314,6 +314,9 @@ public class DataRegion implements IDataRegionForQuery {
   /** manage seqFileList and unSeqFileList. */
   private final TsFileManager tsFileManager;
 
+  /** data lifecycle manager. */
+  private DataLifecycleManager dataLifecycleManager;
+
   /** manage tsFileResource degrade. */
   private final TsFileResourceManager tsFileResourceManager = TsFileResourceManager.getInstance();
 
@@ -418,6 +421,8 @@ public class DataRegion implements IDataRegionForQuery {
     dataRegionSysDir = SystemFileFactory.INSTANCE.getFile(systemDir, dataRegionIdString);
     this.tsFileManager =
         new TsFileManager(databaseName, dataRegionIdString, dataRegionSysDir.getPath());
+    // Initialize data lifecycle manager
+    this.dataLifecycleManager = new DataLifecycleManager(this, tsFileManager);
     if (dataRegionSysDir.mkdirs()) {
       logger.info(
           "Database system Directory {} doesn't exist, create it", dataRegionSysDir.getPath());
@@ -835,12 +840,26 @@ public class DataRegion implements IDataRegionForQuery {
     RepairUnsortedFileCompactionTask.recoverAllocatedFileTimestamp(
         tsFileManager.getMaxFileTimestampOfUnSequenceFile());
     CompactionScheduleTaskManager.getInstance().registerDataRegion(this);
+    // Start data lifecycle manager
+    if (dataLifecycleManager != null) {
+      dataLifecycleManager.start();
+    }
   }
 
   private void recoverCompaction() {
     CompactionRecoverManager compactionRecoverManager =
         new CompactionRecoverManager(tsFileManager, databaseName, dataRegionIdString);
     compactionRecoverManager.recoverCompaction();
+  }
+
+  public DataLifecycleManager getDataLifecycleManager() {
+    return dataLifecycleManager;
+  }
+
+  public void stopDataLifecycleManager() {
+    if (dataLifecycleManager != null) {
+      dataLifecycleManager.stop();
+    }
   }
 
   public void updatePartitionFileVersion(long partitionNum, long fileVersion) {

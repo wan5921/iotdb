@@ -386,6 +386,10 @@ FLUSH
     : F L U S H
     ;
 
+ARCHIVE
+    : A R C H I V E
+    ;
+
 FOR
     : F O R
     ;
@@ -813,6 +817,10 @@ SERVICE
 
 SERVICES
     : S E R V I C E S
+    ;
+
+STATUS
+    : S T A T U S
     ;
 
 SESSION

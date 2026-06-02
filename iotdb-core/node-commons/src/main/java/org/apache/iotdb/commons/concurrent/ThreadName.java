@@ -64,6 +64,8 @@ public enum ThreadName {
   FLUSH_TASK_SUBMIT("FlushTask-Submit-Pool"),
   TIMED_FLUSH_SEQ_MEMTABLE("Timed-Flush-Seq-Memtable"),
   TIMED_FLUSH_UNSEQ_MEMTABLE("Timed-Flush-Unseq-Memtable"),
+  // -------------------------- DataLifecycle --------------------------
+  DATA_LIFECYCLE_MANAGER("Data-Lifecycle-Manager"),
   // -------------------------- SchemaEngine --------------------------
   SCHEMA_REGION_RELEASE_PROCESSOR("SchemaRegion-Release-Task-Processor"),
   SCHEMA_REGION_RECOVER_TASK("SchemaRegion-Recover-Task"),

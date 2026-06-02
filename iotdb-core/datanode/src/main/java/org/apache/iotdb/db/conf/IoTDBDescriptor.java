@@ -909,6 +909,13 @@ public class IoTDBDescriptor {
             properties.getProperty(
                 "pipe_task_thread_count", Integer.toString(conf.getPipeTaskThreadCount()).trim())));
 
+    // Data lifecycle configuration
+    conf.setDataLifecycleDays(
+        Integer.parseInt(
+            properties.getProperty(
+                "data_lifecycle_days", Integer.toString(conf.getDataLifecycleDays()))));
+    conf.setArchivePath(properties.getProperty("archive_path", conf.getArchivePath()));
+
     // At the same time, set TSFileConfig
     List<FSType> fsTypes = new ArrayList<>();
     fsTypes.add(FSType.LOCAL);

@@ -423,6 +423,12 @@ public class IoTDBConfig {
   /** Default confidence level for delay analyzer: 99% */
   private double delayAnalyzerConfidenceLevel = 0.99;
 
+  /** Data lifecycle in days, 0 means disabled */
+  private int dataLifecycleDays = 0;
+
+  /** Archive path for storing archived TsFiles */
+  private String archivePath = "data" + File.separator + "archive";
+
   /** The sort algorithm used in TVList */
   private TVListSortAlgorithm tvListSortAlgorithm = TVListSortAlgorithm.TIM;
 
@@ -2324,6 +2330,22 @@ public class IoTDBConfig {
 
   public void setDelayAnalyzerConfidenceLevel(double delayAnalyzerConfidenceLevel) {
     this.delayAnalyzerConfidenceLevel = delayAnalyzerConfidenceLevel;
+  }
+
+  public int getDataLifecycleDays() {
+    return dataLifecycleDays;
+  }
+
+  public void setDataLifecycleDays(int dataLifecycleDays) {
+    this.dataLifecycleDays = dataLifecycleDays;
+  }
+
+  public String getArchivePath() {
+    return archivePath;
+  }
+
+  public void setArchivePath(String archivePath) {
+    this.archivePath = archivePath;
   }
 
   public TVListSortAlgorithm getTvListSortAlgorithm() {

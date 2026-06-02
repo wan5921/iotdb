@@ -813,4 +813,17 @@ public class ColumnHeaderConstant {
           new ColumnHeader(TABLE_NAME_TABLE_MODEL, TSDataType.STRING),
           new ColumnHeader(TIME_COLUMN, TSDataType.STRING),
           new ColumnHeader(TAG_COLUMNS, TSDataType.STRING));
+
+  // column names for show archive status
+  public static final String ARCHIVE_STATUS_DATABASE = "Database";
+  public static final String ARCHIVE_STATUS_REGION_ID = "RegionId";
+  public static final String ARCHIVE_STATUS_ARCHIVED_COUNT = "ArchivedCount";
+  public static final String ARCHIVE_STATUS_LAST_ARCHIVE_TIME = "LastArchiveTime";
+
+  public static final List<ColumnHeader> showArchiveStatusColumnHeaders =
+      ImmutableList.of(
+          new ColumnHeader(ARCHIVE_STATUS_DATABASE, TSDataType.TEXT),
+          new ColumnHeader(ARCHIVE_STATUS_REGION_ID, TSDataType.INT32),
+          new ColumnHeader(ARCHIVE_STATUS_ARCHIVED_COUNT, TSDataType.INT64),
+          new ColumnHeader(ARCHIVE_STATUS_LAST_ARCHIVE_TIME, TSDataType.TEXT));
 }

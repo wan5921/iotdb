@@ -96,7 +96,7 @@ utilityStatement
     | showQueries | showDiskUsage | showCurrentTimestamp | killQuery | grantWatermarkEmbedding
     | revokeWatermarkEmbedding | loadConfiguration | loadTimeseries | loadFile
     | removeFile | unloadFile | setSqlDialect | showCurrentSqlDialect | showCurrentUser
-    | repairDataPartitionTable
+    | repairDataPartitionTable | showArchiveStatus
     ;
 
 /**
@@ -1288,6 +1288,11 @@ showVersion
 // Show Flush Info
 showFlushInfo
     : SHOW FLUSH INFO
+    ;
+
+// Show Archive Status
+showArchiveStatus
+    : SHOW ARCHIVE STATUS
     ;
 
 // Show Lock Info

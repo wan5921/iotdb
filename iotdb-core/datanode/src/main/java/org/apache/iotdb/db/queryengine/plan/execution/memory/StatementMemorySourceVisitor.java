@@ -42,7 +42,11 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildPathsSta
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowCurrentTimestampStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.template.ShowPathsUsingTemplateStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+import org.apache.iotdb.db.storageengine.StorageEngine;
+import org.apache.iotdb.db.storageengine.dataregion.DataLifecycleManager;
+import org.apache.iotdb.db.storageengine.dataregion.DataRegion;
 
 import org.apache.tsfile.common.conf.TSFileConfig;
 import org.apache.tsfile.enums.TSDataType;
@@ -191,6 +195,45 @@ public class StatementMemorySourceVisitor
 
     return new StatementMemorySource(
         getVersionResult(), context.getAnalysis().getRespDatasetHeader());
+  }
+
+  @Override
+  public StatementMemorySource visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement,
+      StatementMemorySourceContext context) {
+    List<TSDataType> outputDataTypes =
+        ColumnHeaderConstant.showArchiveStatusColumnHeaders.stream()
+            .map(ColumnHeader::getColumnType)
+            .collect(Collectors.toList());
+    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
+    
+    // Get all data regions and collect archive status
+    List<DataRegion> dataRegions = StorageEngine.getInstance().getAllDataRegions();
+    for (DataRegion dataRegion : dataRegions) {
+      DataLifecycleManager lifecycleManager = dataRegion.getDataLifecycleManager();
+      if (lifecycleManager == null) {
+        continue;
+      }
+      
+      tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
+      tsBlockBuilder
+          .getColumnBuilder(0)
+          .writeBinary(new Binary(dataRegion.getDatabaseName(), TSFileConfig.STRING_CHARSET));
+      tsBlockBuilder.getColumnBuilder(1).writeInt(dataRegion.getDataRegionId());
+      tsBlockBuilder.getColumnBuilder(2).writeLong(lifecycleManager.getTotalArchivedFiles());
+      
+      String lastArchiveTimeStr = "";
+      if (lifecycleManager.getLastArchiveTime() > 0) {
+        lastArchiveTimeStr = new java.util.Date(lifecycleManager.getLastArchiveTime()).toString();
+      }
+      tsBlockBuilder
+          .getColumnBuilder(3)
+          .writeBinary(new Binary(lastArchiveTimeStr, TSFileConfig.STRING_CHARSET));
+      tsBlockBuilder.declarePosition();
+    }
+
+    return new StatementMemorySource(
+        tsBlockBuilder.build(), context.getAnalysis().getRespDatasetHeader());
   }
 
   public static TsBlock getVersionResult() {

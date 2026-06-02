@@ -1868,6 +1868,12 @@ public class TreeAccessCheckVisitor extends StatementVisitor<TSStatus, TreeAcces
   }
 
   @Override
+  public TSStatus visitShowArchiveStatus(
+      ShowArchiveStatusStatement statement, TreeAccessCheckContext context) {
+    return SUCCEED;
+  }
+
+  @Override
   public TSStatus visitTestConnection(
       TestConnectionStatement statement, TreeAccessCheckContext context) {
     return checkGlobalAuth(context, PrivilegeType.MAINTAIN, () -> "");

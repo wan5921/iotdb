@@ -3467,6 +3467,16 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
     return analysis;
   }
 
+  @Override
+  public Analysis visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement, MPPQueryContext context) {
+    Analysis analysis = new Analysis();
+    analysis.setRealStatement(showArchiveStatusStatement);
+    analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowArchiveStatusHeader());
+    analysis.setFinishQueryAfterAnalyze(true);
+    return analysis;
+  }
+
   private Analysis visitSchemaNodeManagementPartition(
       ShowStatement statement, PartialPath path, PathPatternTree scope, DatasetHeader header) {
     Analysis analysis = new Analysis();

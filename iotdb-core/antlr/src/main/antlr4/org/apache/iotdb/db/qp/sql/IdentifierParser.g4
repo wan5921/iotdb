@@ -116,6 +116,7 @@ keyWords
     | FILE
     | FIRST
     | FLUSH
+    | ARCHIVE
     | FOR
     | FORCEDLY
     | FROM
@@ -221,6 +222,7 @@ keyWords
     | SERIESSLOTID
     | SERVICE
     | SERVICES
+    | STATUS
     | SESSION
     | SET
     | SETTLE

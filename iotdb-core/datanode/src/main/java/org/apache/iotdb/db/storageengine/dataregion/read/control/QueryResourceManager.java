@@ -19,20 +19,6 @@
 
 package org.apache.iotdb.db.storageengine.dataregion.read.control;
 
-import java.util.concurrent.atomic.AtomicLong;
-
-/**
- * QueryResourceManager manages resource (file streams) used by each read job, and assign Ids to the
- * jobs. During the life cycle of a read, the following methods must be called in strict order:
- *
- * <p>1. assignQueryId - get an Id for the new read.
- *
- * <p>2. getQueryDataSource - open files for the job or reuse existing readers.
- *
- * <p>3. endQueryForGivenJob - release the resource used by this job.
- */
-public class QueryResourceManager {
-
   private final AtomicLong queryIdAtom = new AtomicLong();
   private final QueryFileManager filePathsManager;
 
@@ -40,8 +26,6 @@ public class QueryResourceManager {
     filePathsManager = new QueryFileManager();
   }
 
-  public static QueryResourceManager getInstance() {
-    return QueryTokenManagerHelper.INSTANCE;
   }
 
   /** Register a new read. When a read request is created firstly, this method must be invoked. */
@@ -49,15 +33,6 @@ public class QueryResourceManager {
     return queryIdAtom.incrementAndGet();
   }
 
-  /**
-   * Register a read id for compaction. The name of the compaction thread is
-   * 'pool-x-IoTDB-Compaction-xx', xx in which is usually an integer from 0 to
-   * MAXCOMPACTION_THREAD_NUM. We use the following rules to define read id for compaction: <br>
-   * queryId = xx + Long.MIN_VALUE
-   */
-  public long assignCompactionQueryId() {
-    long threadNum = Long.parseLong((Thread.currentThread().getName().split("-"))[5]);
-    long queryId = Long.MIN_VALUE + threadNum;
     filePathsManager.addQueryId(queryId);
     return queryId;
   }
@@ -75,9 +50,10 @@ public class QueryResourceManager {
 
   public QueryFileManager getQueryFileManager() {
     return filePathsManager;
-  }
-
-  private static class QueryTokenManagerHelper {
+   * Register a read id for compaction. The name of the compaction thread is
+   * 'pool-x-IoTDB-Compaction-xx', xx in which is usually an integer from 0 to
+   * MAXCOMPACTION_THREAD_NUM. We use the following rules to define read id for compaction: <br>
+   * queryId = xx + Long.MIN_VALUE
 
     private static final QueryResourceManager INSTANCE = new QueryResourceManager();
 
