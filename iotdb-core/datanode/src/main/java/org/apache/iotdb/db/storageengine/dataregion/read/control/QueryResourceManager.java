@@ -19,6 +19,13 @@
 
 package org.apache.iotdb.db.storageengine.dataregion.read.control;
 
+import org.apache.iotdb.db.storageengine.dataregion.read.QueryDataSource;
+import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -32,6 +39,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>3. endQueryForGivenJob - release the resource used by this job.
  */
 public class QueryResourceManager {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(QueryResourceManager.class);
 
   private final AtomicLong queryIdAtom = new AtomicLong();
   private final QueryFileManager filePathsManager;
@@ -50,16 +59,58 @@ public class QueryResourceManager {
   }
 
   /**
-   * Register a read id for compaction. The name of the compaction thread is
-   * 'pool-x-IoTDB-Compaction-xx', xx in which is usually an integer from 0 to
-   * MAXCOMPACTION_THREAD_NUM. We use the following rules to define read id for compaction: <br>
-   * queryId = xx + Long.MIN_VALUE
+   * Register a read id for compaction.
+   *
+   * ...
    */
   public long assignCompactionQueryId() {
     long threadNum = Long.parseLong((Thread.currentThread().getName().split("-"))[5]);
     long queryId = Long.MIN_VALUE + threadNum;
     filePathsManager.addQueryId(queryId);
     return queryId;
+  }
+
+  /**
+   * Get QueryDataSource and log data file paths and TsFileResource start timestamps for debugging.
+   * This is the second step in the query lifecycle, invoked after assignQueryId.
+   *
+   * @param queryId the query id assigned by assignQueryId
+   * @param dataSource the QueryDataSource containing seq and unseq TsFileResources
+   */
+  public void getQueryDataSource(long queryId, QueryDataSource dataSource) {
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("QueryResourceManager.getQueryDataSource: queryId={}", queryId);
+
+      List<TsFileResource> seqResources = dataSource.getSeqResources();
+      if (seqResources != null && !seqResources.isEmpty()) {
+        LOGGER.debug(
+            "QueryResourceManager.getQueryDataSource: queryId={}, seqResources count={}",
+            queryId,
+            seqResources.size());
+        for (TsFileResource resource : seqResources) {
+          LOGGER.debug(
+              "QueryResourceManager.getQueryDataSource: queryId={}, seqTsFile={}, fileStartTime={}",
+              queryId,
+              resource.getTsFile().getAbsolutePath(),
+              resource.getFileStartTime());
+        }
+      }
+
+      List<TsFileResource> unseqResources = dataSource.getUnseqResources();
+      if (unseqResources != null && !unseqResources.isEmpty()) {
+        LOGGER.debug(
+            "QueryResourceManager.getQueryDataSource: queryId={}, unseqResources count={}",
+            queryId,
+            unseqResources.size());
+        for (TsFileResource resource : unseqResources) {
+          LOGGER.debug(
+              "QueryResourceManager.getQueryDataSource: queryId={}, unseqTsFile={}, fileStartTime={}",
+              queryId,
+              resource.getTsFile().getAbsolutePath(),
+              resource.getFileStartTime());
+        }
+      }
+    }
   }
 
   /**
