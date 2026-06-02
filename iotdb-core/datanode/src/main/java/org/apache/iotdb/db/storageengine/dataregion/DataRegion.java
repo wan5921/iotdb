@@ -2592,8 +2592,6 @@ public class DataRegion implements IDataRegionForQuery {
             SEQUENCE_TSFILE, satisfiedSeqResourceList.size());
         QUERY_RESOURCE_METRIC_SET.recordQueryResourceNum(
             UNSEQUENCE_TSFILE, satisfiedUnSeqResourceList.size());
-        return new QueryDataSource(
-            satisfiedSeqResourceList, satisfiedUnSeqResourceList, databaseName);
       } catch (MetadataException e) {
         throw new QueryProcessException(e);
       } finally {
@@ -2604,18 +2602,6 @@ public class DataRegion implements IDataRegionForQuery {
       return null;
     }
   }
-
-  /**
-   * try to get flush lock for each unclosed satisfied tsfile
-   *
-   * @return true if lock successfully, otherwise false if return false, needToUnLockList will
-   *     always be empty because this method is responsible for unlocking all the already-acquiring
-   *     lock if return true, the caller is responsible for unlocking all the already-acquiring lock
-   *     in needToUnLockList
-   */
-  private boolean tryGetFLushLock(
-      long waitTimeInMs,
-      IDeviceID singleDeviceId,
       Filter globalTimeFilter,
       boolean isDebug,
       List<TsFileResource> seqResources,
