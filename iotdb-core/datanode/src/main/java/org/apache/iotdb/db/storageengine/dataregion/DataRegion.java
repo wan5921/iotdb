@@ -2592,6 +2592,8 @@ public class DataRegion implements IDataRegionForQuery {
             SEQUENCE_TSFILE, satisfiedSeqResourceList.size());
         QUERY_RESOURCE_METRIC_SET.recordQueryResourceNum(
             UNSEQUENCE_TSFILE, satisfiedUnSeqResourceList.size());
+        logQueryDataSourceResources(context, satisfiedSeqResourceList, true);
+        logQueryDataSourceResources(context, satisfiedUnSeqResourceList, false);
         return new QueryDataSource(
             satisfiedSeqResourceList, satisfiedUnSeqResourceList, databaseName);
       } catch (MetadataException e) {
@@ -2602,6 +2604,18 @@ public class DataRegion implements IDataRegionForQuery {
     } else {
       // means that failed to acquire lock within the specific time
       return null;
+    }
+  }
+
+  private void logQueryDataSourceResources(
+      QueryContext context, List<TsFileResource> resources, boolean sequence) {
+    for (TsFileResource resource : resources) {
+      logger.info(
+          "Query {} {} tsfile path={}, startTime={}",
+          context.getQueryId(),
+          sequence ? "seq" : "unseq",
+          resource.getTsFile().getAbsolutePath(),
+          resource.getFileStartTime());
     }
   }
 

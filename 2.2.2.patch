@@ -1,0 +1,53 @@
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
+index 93a04bf401..a7efb387ee 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
+@@ -2592,6 +2592,8 @@ public class DataRegion implements IDataRegionForQuery {
+             SEQUENCE_TSFILE, satisfiedSeqResourceList.size());
+         QUERY_RESOURCE_METRIC_SET.recordQueryResourceNum(
+             UNSEQUENCE_TSFILE, satisfiedUnSeqResourceList.size());
++        logQueryDataSourceResources(context, satisfiedSeqResourceList, true);
++        logQueryDataSourceResources(context, satisfiedUnSeqResourceList, false);
+         return new QueryDataSource(
+             satisfiedSeqResourceList, satisfiedUnSeqResourceList, databaseName);
+       } catch (MetadataException e) {
+@@ -2605,6 +2607,18 @@ public class DataRegion implements IDataRegionForQuery {
+     }
+   }
+ 
++  private void logQueryDataSourceResources(
++      QueryContext context, List<TsFileResource> resources, boolean sequence) {
++    for (TsFileResource resource : resources) {
++      logger.info(
++          "Query {} {} tsfile path={}, startTime={}",
++          context.getQueryId(),
++          sequence ? "seq" : "unseq",
++          resource.getTsFile().getAbsolutePath(),
++          resource.getFileStartTime());
++    }
++  }
++
+   /**
+    * try to get flush lock for each unclosed satisfied tsfile
+    *
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryFileManager.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryFileManager.java
+index e748a124bd..d9cbff5b33 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryFileManager.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryFileManager.java
+@@ -73,16 +73,6 @@ public class QueryFileManager {
+     Iterator<TsFileResource> iterator = resources.iterator();
+     while (iterator.hasNext()) {
+       TsFileResource tsFileResource = iterator.next();
+-      boolean isClosed = tsFileResource.isClosed();
+-      addFilePathToMap(queryId, tsFileResource, isClosed);
+-
+-      // this file may be deleted just before we lock it
+-      if (tsFileResource.isDeleted()) {
+-        Map<Long, Map<TsFileResource, TsFileResource>> pathMap =
+-            !isClosed ? unsealedFilePathsMap : sealedFilePathsMap;
+-        // This resource may be removed by other threads of this read.
+-        if (pathMap.get(queryId).remove(tsFileResource) != null) {
+-          FileReaderManager.getInstance().decreaseFileReaderReference(tsFileResource, isClosed);
+         }
+         iterator.remove();
+       }
