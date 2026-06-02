@@ -1290,11 +1290,6 @@ showFlushInfo
     : SHOW FLUSH INFO
     ;
 
-// Show Lock Info
-showLockInfo
-    : SHOW LOCK INFO prefixPath
-    ;
-
 
 // Show Query Resource
 showQueryResource

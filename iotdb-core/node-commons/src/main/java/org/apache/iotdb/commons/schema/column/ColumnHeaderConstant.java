@@ -813,4 +813,3 @@ public class ColumnHeaderConstant {
           new ColumnHeader(TABLE_NAME_TABLE_MODEL, TSDataType.STRING),
           new ColumnHeader(TIME_COLUMN, TSDataType.STRING),
           new ColumnHeader(TAG_COLUMNS, TSDataType.STRING));
-}

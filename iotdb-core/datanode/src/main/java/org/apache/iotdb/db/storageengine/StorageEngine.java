@@ -414,7 +414,6 @@ public class StorageEngine implements IService {
     for (DataRegion dataRegion : dataRegionMap.values()) {
       if (dataRegion != null) {
         CompactionScheduleTaskManager.getInstance().unregisterDataRegion(dataRegion);
-      }
     }
     syncCloseAllProcessor();
     ThreadUtils.stopThreadPool(

@@ -314,9 +314,6 @@ public class DataRegion implements IDataRegionForQuery {
   /** manage seqFileList and unSeqFileList. */
   private final TsFileManager tsFileManager;
 
-  /** manage tsFileResource degrade. */
-  private final TsFileResourceManager tsFileResourceManager = TsFileResourceManager.getInstance();
-
   /** file system factory (local or hdfs). */
   private final FSFactory fsFactory = FSFactoryProducer.getFSFactory();
 
@@ -421,8 +418,6 @@ public class DataRegion implements IDataRegionForQuery {
     if (dataRegionSysDir.mkdirs()) {
       logger.info(
           "Database system Directory {} doesn't exist, create it", dataRegionSysDir.getPath());
-    } else if (!dataRegionSysDir.exists()) {
-      logger.error(StorageEngineMessages.CREATE_DB_SYSTEM_DIR_FAILED, dataRegionSysDir.getPath());
     }
 
     lastFlushTimeMap = new HashLastFlushTimeMap();
@@ -840,26 +835,12 @@ public class DataRegion implements IDataRegionForQuery {
   private void recoverCompaction() {
     CompactionRecoverManager compactionRecoverManager =
         new CompactionRecoverManager(tsFileManager, databaseName, dataRegionIdString);
-    compactionRecoverManager.recoverCompaction();
-  }
-
-  public void updatePartitionFileVersion(long partitionNum, long fileVersion) {
     partitionMaxFileVersions.compute(
         partitionNum,
         (key, oldVersion) ->
             (oldVersion == null || fileVersion > oldVersion) ? fileVersion : oldVersion);
   }
 
-  @SuppressWarnings("squid:S3776") // Suppress high Cognitive Complexity warning
-  private Map<Long, List<TsFileResource>> getAllFiles(List<String> folders)
-      throws IOException, DataRegionException {
-    // "{partition id}/{tsfile name}" -> tsfile file, remove duplicate files in one time partition
-    Map<String, File> tsFilePartitionPath2File = new HashMap<>();
-    for (String baseDir : folders) {
-      File fileFolder =
-          fsFactory.getFile(baseDir + File.separator + databaseName, dataRegionIdString);
-      if (!fileFolder.exists()) {
-        continue;
       }
       // some TsFileResource may be being persisted when the system crashed, try recovering such
       // resources

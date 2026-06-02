@@ -282,4 +282,3 @@ public class DatasetHeaderFactory {
   public static DatasetHeader getShowCurrentSqlDialectHeader() {
     return new DatasetHeader(ColumnHeaderConstant.SHOW_CURRENT_SQL_DIALECT_COLUMN_HEADERS, true);
   }
-}

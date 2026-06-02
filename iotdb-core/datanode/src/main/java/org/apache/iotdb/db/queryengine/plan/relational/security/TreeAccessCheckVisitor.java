@@ -1868,12 +1868,6 @@ public class TreeAccessCheckVisitor extends StatementVisitor<TSStatus, TreeAcces
   }
 
   @Override
-  public TSStatus visitTestConnection(
-      TestConnectionStatement statement, TreeAccessCheckContext context) {
-    return checkGlobalAuth(context, PrivilegeType.MAINTAIN, () -> "");
-  }
-
-  @Override
   public TSStatus visitShowCurrentTimestamp(
       ShowCurrentTimestampStatement showCurrentTimestampStatement, TreeAccessCheckContext context) {
     return SUCCEED;

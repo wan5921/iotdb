@@ -116,7 +116,6 @@ keyWords
     | FILE
     | FIRST
     | FLUSH
-    | FOR
     | FORCEDLY
     | FROM
     | FULL
@@ -222,7 +221,6 @@ keyWords
     | SERVICE
     | SERVICES
     | SESSION
-    | SET
     | SETTLE
     | SGLEVEL
     | SHOW

@@ -247,7 +247,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatem
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
@@ -1034,12 +1033,6 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
   public Statement visitShowVersion(IoTDBSqlParser.ShowVersionContext ctx) {
     return new ShowVersionStatement();
   }
-
-  // Create Function
-  @Override
-  public Statement visitCreateFunction(CreateFunctionContext ctx) {
-    if (ctx.uriClause() == null) {
-      return new CreateFunctionStatement(
           parseIdentifier(ctx.udfName.getText()),
           parseStringLiteral(ctx.className.getText()),
           Optional.empty());

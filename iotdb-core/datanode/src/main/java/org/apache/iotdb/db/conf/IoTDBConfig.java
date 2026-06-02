@@ -423,12 +423,6 @@ public class IoTDBConfig {
   /** Default confidence level for delay analyzer: 99% */
   private double delayAnalyzerConfidenceLevel = 0.99;
 
-  /** The sort algorithm used in TVList */
-  private TVListSortAlgorithm tvListSortAlgorithm = TVListSortAlgorithm.TIM;
-
-  /**
-   * the threshold when working TVList is sorted and added into immutable TVList list in the
-   * writable memtable
    */
   private int tvListSortThreshold = 0;
 
@@ -2328,22 +2322,6 @@ public class IoTDBConfig {
 
   public TVListSortAlgorithm getTvListSortAlgorithm() {
     return tvListSortAlgorithm;
-  }
-
-  public void setTvListSortAlgorithm(TVListSortAlgorithm tvListSortAlgorithm) {
-    this.tvListSortAlgorithm = tvListSortAlgorithm;
-  }
-
-  public int getTvListSortThreshold() {
-    return tvListSortThreshold;
-  }
-
-  public void setTVListSortThreshold(int tvListSortThreshold) {
-    this.tvListSortThreshold = tvListSortThreshold;
-  }
-
-  public boolean isStreamingQueryMemChunk() {
-    return streamingQueryMemChunk;
   }
 
   public void setStreamingQueryMemChunk(boolean streamingQueryMemChunk) {

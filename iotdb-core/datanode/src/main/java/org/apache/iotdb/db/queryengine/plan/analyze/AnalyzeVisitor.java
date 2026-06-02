@@ -3467,16 +3467,6 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
     return analysis;
   }
 
-  private Analysis visitSchemaNodeManagementPartition(
-      ShowStatement statement, PartialPath path, PathPatternTree scope, DatasetHeader header) {
-    Analysis analysis = new Analysis();
-    analysis.setRealStatement(statement);
-
-    PathPatternTree patternTree = new PathPatternTree();
-    patternTree.appendPathPattern(path);
-    SchemaNodeManagementPartition schemaNodeManagementPartition =
-        partitionFetcher.getSchemaNodeManagementPartition(
-            patternTree, scope, statement.isCanSeeAuditDB());
 
     if (schemaNodeManagementPartition == null) {
       return analysis;

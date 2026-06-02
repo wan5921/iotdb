@@ -386,10 +386,6 @@ FLUSH
     : F L U S H
     ;
 
-FOR
-    : F O R
-    ;
-
 FORCEDLY
     : F O R C E D L Y
     ;
@@ -817,10 +813,6 @@ SERVICES
 
 SESSION
     : S E S S I O N
-    ;
-
-SET
-    : S E T
     ;
 
 SETTLE

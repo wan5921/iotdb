@@ -909,13 +909,6 @@ public class IoTDBDescriptor {
             properties.getProperty(
                 "pipe_task_thread_count", Integer.toString(conf.getPipeTaskThreadCount()).trim())));
 
-    // At the same time, set TSFileConfig
-    List<FSType> fsTypes = new ArrayList<>();
-    fsTypes.add(FSType.LOCAL);
-    if (Boolean.parseBoolean(
-        properties.getProperty("enable_hdfs", String.valueOf(conf.isEnableHDFS())))) {
-      fsTypes.add(FSType.HDFS);
-    }
     TSFileDescriptor.getInstance().getConfig().setTSFileStorageFs(fsTypes.toArray(new FSType[0]));
     TSFileDescriptor.getInstance()
         .getConfig()
