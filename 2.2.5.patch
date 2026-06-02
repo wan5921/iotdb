@@ -1,0 +1,116 @@
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryResourceManager.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryResourceManager.java
+index 930d68b4e8..479544de27 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryResourceManager.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/read/control/QueryResourceManager.java
+@@ -19,13 +19,20 @@
+ 
+ package org.apache.iotdb.db.storageengine.dataregion.read.control;
+ 
++import org.apache.iotdb.db.storageengine.dataregion.read.QueryDataSource;
++import org.apache.iotdb.db.storageengine.dataregion.tsfile.TsFileResource;
++
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.util.List;
+ import java.util.concurrent.atomic.AtomicLong;
+ 
+ /**
+- * QueryResourceManager manages resource (file streams) used by each read job, and assign Ids to the
+- * jobs. During the life cycle of a read, the following methods must be called in strict order:
++ * QueryResourceManager is used to manage the resources used by a read job. It has three main
++ * functions:
+  *
+- * <p>1. assignQueryId - get an Id for the new read.
++ * <p>1. assignQueryId - assign a unique query id for each read.
+  *
+  * <p>2. getQueryDataSource - open files for the job or reuse existing readers.
+  *
+@@ -33,6 +40,8 @@ import java.util.concurrent.atomic.AtomicLong;
+  */
+ public class QueryResourceManager {
+ 
++  private static final Logger LOGGER = LoggerFactory.getLogger(QueryResourceManager.class);
++
+   private final AtomicLong queryIdAtom = new AtomicLong();
+   private final QueryFileManager filePathsManager;
+ 
+@@ -41,7 +50,14 @@ public class QueryResourceManager {
+   }
+ 
+   public static QueryResourceManager getInstance() {
+-    return QueryTokenManagerHelper.INSTANCE;
++    return InstanceHolder.instance;
++  }
++
++  private static class InstanceHolder {
++
++    private InstanceHolder() {}
++
++    private static QueryResourceManager instance = new QueryResourceManager();
+   }
+ 
+   /** Register a new read. When a read request is created firstly, this method must be invoked. */
+@@ -69,7 +85,6 @@ public class QueryResourceManager {
+   // Suppress high Cognitive Complexity warning
+   // attention: Since V1.0, Query Module does not use this method for cleaning
+   public void endQuery(long queryId) {
+-    // remove usage of opened file paths of current thread
+     filePathsManager.removeUsedFilesForQuery(queryId);
+   }
+ 
+@@ -77,10 +92,51 @@ public class QueryResourceManager {
+     return filePathsManager;
+   }
+ 
+-  private static class QueryTokenManagerHelper {
++  /**
++   * Get the QueryDataSource for a given query and log the data file paths and TsFileResource start
++   * timestamps for debugging purposes.
++   *
++   * @param queryId the query id
++   * @param queryDataSource the QueryDataSource containing seq and unseq TsFileResources
++   * @return the same QueryDataSource after logging
++   */
++  public QueryDataSource getQueryDataSource(long queryId, QueryDataSource queryDataSource) {
++    if (queryDataSource == null) {
++      return null;
++    }
++
++    List<TsFileResource> seqResources = queryDataSource.getSeqResources();
++    List<TsFileResource> unseqResources = queryDataSource.getUnseqResources();
++
++    if (LOGGER.isDebugEnabled()) {
++      LOGGER.debug(
++          "QueryDataSource for queryId={}: seqResources count={}, unseqResources count={}",
++          queryId,
++          seqResources.size(),
++          unseqResources.size());
++
++      for (int i = 0; i < seqResources.size(); i++) {
++        TsFileResource resource = seqResources.get(i);
++        LOGGER.debug(
++            "  seq[{}]: filePath={}, startTime={}, endTime={}",
++            i,
++            resource.getTsFile().getAbsolutePath(),
++            resource.getFileStartTime(),
++            resource.getFileEndTime());
++      }
+ 
+-    private static final QueryResourceManager INSTANCE = new QueryResourceManager();
++      for (int i = 0; i < unseqResources.size(); i++) {
++        TsFileResource resource = unseqResources.get(i);
++        LOGGER.debug(
++            "  unseq[{}]: filePath={}, startTime={}, endTime={}",
++            i,
++            resource.getTsFile().getAbsolutePath(),
++            resource.getFileStartTime(),
++            resource.getFileEndTime());
++      }
++    }
+ 
+-    private QueryTokenManagerHelper() {}
++    filePathsManager.addUsedFilesForQuery(queryId, queryDataSource);
++    return queryDataSource;
+   }
+ }
