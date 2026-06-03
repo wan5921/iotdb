@@ -1,0 +1,31 @@
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
+index 90d390f40b..e9a567de51 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
+@@ -23,6 +23,26 @@ import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+ import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
+ import org.apache.iotdb.db.queryengine.plan.analyze.Analysis;
+ 
++import java.util.ArrayList;
++import java.util.List;
++
+ public interface PlanOptimizer {
+   PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context);
+ }
++
++abstract class AbstractRuleBasedPlanOptimizer implements PlanOptimizer {
++  protected final List<IOptimizerRule> rules = new ArrayList<>();
++
++  protected AbstractRuleBasedPlanOptimizer() {
++    rules.add(new DummyOptimizerRule());
++  }
++
++  @Override
++  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++    PlanNode result = plan;
++    for (IOptimizerRule rule : rules) {
++      result = rule.apply(result);
++    }
++    return result;
++  }
++}
