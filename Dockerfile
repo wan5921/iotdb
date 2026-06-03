@@ -1,32 +1,38 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
 #
-#    Licensed to the Apache Software Foundation (ASF) under one
-#    or more contributor license agreements.  See the NOTICE file
-#    distributed with this work for additional information
-#    regarding copyright ownership.  The ASF licenses this file
-#    to you under the Apache License, Version 2.0 (the
-#    "License"); you may not use this file except in compliance
-#    with the License.  You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-#        http://www.apache.org/licenses/LICENSE-2.0
-#
-#    Unless required by applicable law or agreed to in writing,
-#    software distributed under the License is distributed on an
-#    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-#    KIND, either express or implied.  See the License for the
-#    specific language governing permissions and limitations
-#    under the License.
-#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-FROM openjdk:11-slim
+FROM eclipse-temurin:11-jre-slim
 
 ARG IOTDB_VERSION=2.0.7-SNAPSHOT
 
-WORKDIR /iotdb
+COPY distribution/target/apache-iotdb-${IOTDB_VERSION}-all-bin.zip /opt/
 
-COPY distribution/target/apache-iotdb-${IOTDB_VERSION} /iotdb
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends unzip && \
+    unzip /opt/apache-iotdb-${IOTDB_VERSION}-all-bin.zip -d /opt/ && \
+    rm /opt/apache-iotdb-${IOTDB_VERSION}-all-bin.zip && \
+    apt-get purge -y unzip && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/apache-iotdb-${IOTDB_VERSION}-all-bin
 
 EXPOSE 6667
 
-ENV PATH="/iotdb/sbin:${PATH}"
+ENV IOTDB_HOME=/opt/apache-iotdb-${IOTDB_VERSION}-all-bin
 
-CMD ["start-standalone.sh"]
+CMD ["sbin/start-standalone.sh"]
