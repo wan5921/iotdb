@@ -64,10 +64,10 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 /** <b>Optimization phase:</b> Logical plan planning. */
-public class PredicatePushDown implements PlanOptimizer {
+public class PredicatePushDown extends PlanOptimizer {
 
   @Override
-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
     StatementType statementType = analysis.getTreeStatement().getType();
     if (statementType == StatementType.SHOW_DISK_USAGE) {
       return plan.accept(new Rewriter(), new RewriterContext(analysis, context, false));

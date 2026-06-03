@@ -67,10 +67,10 @@ import java.util.concurrent.TimeUnit;
  * <li>Only one scan node is included in the distributed plan. That is, only one single series or a
  *     group of series under an aligned device is queried, and all queried data is in one region.
  */
-public class LimitOffsetPushDown implements PlanOptimizer {
+public class LimitOffsetPushDown extends PlanOptimizer {
 
   @Override
-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
     StatementType statementType = analysis.getTreeStatement().getType();
     if (statementType == StatementType.SHOW_DISK_USAGE) {
       return plan.accept(new Rewriter(), new RewriterContext(analysis));

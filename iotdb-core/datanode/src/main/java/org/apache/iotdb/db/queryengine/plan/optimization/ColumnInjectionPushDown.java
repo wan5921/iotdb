@@ -59,10 +59,10 @@ import java.util.List;
  *             |              ->  SlidingWindowAggregation
  *  SlidingWindowAggregation
  */
-public class ColumnInjectionPushDown implements PlanOptimizer {
+public class ColumnInjectionPushDown extends PlanOptimizer {
 
   @Override
-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
     if (analysis.getTreeStatement().getType() != StatementType.QUERY) {
       return plan;
     }

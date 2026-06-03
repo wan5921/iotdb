@@ -1,0 +1,117 @@
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java
+index 48ca03c341..2d86c54560 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java
+@@ -77,10 +77,10 @@ import java.util.Set;
+ import static com.google.common.base.Preconditions.checkState;
+ import static org.apache.iotdb.calc.utils.constant.SqlConstant.COUNT_TIME;
+ 
+-public class AggregationPushDown implements PlanOptimizer {
++public class AggregationPushDown extends PlanOptimizer {
+ 
+   @Override
+-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+     if (analysis.getTreeStatement().getType() != StatementType.QUERY) {
+       return plan;
+     }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java
+index 00d289c399..a5d020a6fa 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java
+@@ -59,10 +59,10 @@ import java.util.List;
+  *             |              ->  SlidingWindowAggregation
+  *  SlidingWindowAggregation
+  */
+-public class ColumnInjectionPushDown implements PlanOptimizer {
++public class ColumnInjectionPushDown extends PlanOptimizer {
+ 
+   @Override
+-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+     if (analysis.getTreeStatement().getType() != StatementType.QUERY) {
+       return plan;
+     }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java
+index c291a196b5..b7fb429d93 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java
+@@ -67,10 +67,10 @@ import java.util.concurrent.TimeUnit;
+  * <li>Only one scan node is included in the distributed plan. That is, only one single series or a
+  *     group of series under an aligned device is queried, and all queried data is in one region.
+  */
+-public class LimitOffsetPushDown implements PlanOptimizer {
++public class LimitOffsetPushDown extends PlanOptimizer {
+ 
+   @Override
+-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+     StatementType statementType = analysis.getTreeStatement().getType();
+     if (statementType == StatementType.SHOW_DISK_USAGE) {
+       return plan.accept(new Rewriter(), new RewriterContext(analysis));
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java
+index 5e28676757..db78eaf3d4 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java
+@@ -61,10 +61,9 @@ import static org.apache.iotdb.db.queryengine.plan.planner.plan.node.process.Top
+  * <li>`LimitNode + OffsetNode + TransformNode/FillNode + MergeSortNode` ==> `LimitNode + OffsetNode
+  *     + TransformNode/FillNode + TopKNode(where topValue = limitValue+offsetValue)`.
+  */
+-public class OrderByExpressionWithLimitChangeToTopK implements PlanOptimizer {
+-
++public class OrderByExpressionWithLimitChangeToTopK extends PlanOptimizer {
+   @Override
+-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+     if (analysis.getTreeStatement().getType() != StatementType.QUERY) {
+       return plan;
+     }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
+index 90d390f40b..87fb7e7aa3 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
+@@ -23,6 +23,25 @@ import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+ import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
+ import org.apache.iotdb.db.queryengine.plan.analyze.Analysis;
+ 
+-public interface PlanOptimizer {
+-  PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context);
++import java.util.ArrayList;
++import java.util.List;
++
++public abstract class PlanOptimizer {
++
++  private final List<IOptimizerRule> optimizerRules;
++
++  protected PlanOptimizer() {
++    this.optimizerRules = new ArrayList<>();
++    this.optimizerRules.add(new DummyOptimizerRule());
++  }
++
++  public final PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++    PlanNode optimizedPlan = doOptimize(plan, analysis, context);
++    for (IOptimizerRule optimizerRule : optimizerRules) {
++      optimizedPlan = optimizerRule.apply(optimizedPlan);
++    }
++    return optimizedPlan;
++  }
++
++  protected abstract PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context);
+ }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java
+index b09d70792b..8af13463b4 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java
+@@ -64,10 +64,10 @@ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ /** <b>Optimization phase:</b> Logical plan planning. */
+-public class PredicatePushDown implements PlanOptimizer {
++public class PredicatePushDown extends PlanOptimizer {
+ 
+   @Override
+-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++  protected PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+     StatementType statementType = analysis.getTreeStatement().getType();
+     if (statementType == StatementType.SHOW_DISK_USAGE) {
+       return plan.accept(new Rewriter(), new RewriterContext(analysis, context, false));
