@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,14 +17,27 @@
 # under the License.
 #
 
-FROM openjdk:11-slim
+FROM eclipse-temurin:11-jre-slim
 
-ARG IOTDB_VERSION
+ARG IOTDB_VERSION=2.0.7-SNAPSHOT
 
-COPY distribution/target/iotdb-${IOTDB_VERSION}/ /opt/iotdb
+RUN apt-get update \
+  && apt-get install -y unzip \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY distribution/target/apache-iotdb-${IOTDB_VERSION}-all-bin.zip /tmp/
+
+RUN unzip /tmp/apache-iotdb-${IOTDB_VERSION}-all-bin.zip -d /opt \
+  && rm /tmp/apache-iotdb-${IOTDB_VERSION}-all-bin.zip \
+  && mv /opt/apache-iotdb-${IOTDB_VERSION}-all-bin /opt/iotdb
+
+ENV IOTDB_HOME=/opt/iotdb
 
 WORKDIR /opt/iotdb
 
 EXPOSE 6667
 
-CMD sbin/start-standalone.sh && tail -F logs/*.log
+VOLUME /opt/iotdb/data
+VOLUME /opt/iotdb/logs
+
+ENTRYPOINT ["/opt/iotdb/sbin/start-standalone.sh"]

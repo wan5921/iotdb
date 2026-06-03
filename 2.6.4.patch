@@ -1,136 +1,256 @@
 diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
-new file mode 100644
-index 0000000000..1111111111
---- /dev/null
+index 23e4c71c73..b13f37d771 100644
+--- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -0,0 +1,62 @@
-+# Licensed to the Apache Software Foundation (ASF) under one
-+# or more contributor license agreements.  See the NOTICE file
-+# distributed with this work for additional information
-+# regarding copyright ownership.  The ASF licenses this file
-+# to you under the Apache License, Version 2.0 (the
-+# "License"); you may not use this file except in compliance
-+# with the License.  You may obtain a copy of the License at
+@@ -1,3 +1,4 @@
 +#
-+#     http://www.apache.org/licenses/LICENSE-2.0
-+#
-+# Unless required by applicable law or agreed to in writing,
-+# software distributed under the License is distributed on an
-+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-+# KIND, either express or implied.  See the License for the
-+# specific language governing permissions and limitations
-+# under the License.
-+#
+ # Licensed to the Apache Software Foundation (ASF) under one
+ # or more contributor license agreements.  See the NOTICE file
+ # distributed with this work for additional information
+@@ -26,34 +27,41 @@ on:
+     branches:
+       - main
+ 
++concurrency:
++  group: ${{ github.workflow }}-${{ github.ref }}
++  cancel-in-progress: true
 +
-+name: CI
+ env:
+   MAVEN_OPTS: -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=3
+   MAVEN_ARGS: --batch-mode --no-transfer-progress
++  DEVELOCITY_ACCESS_KEY: ${{ secrets.DEVELOCITY_ACCESS_KEY }}
+ 
+ jobs:
+-  build:
+-    strategy:
+-      fail-fast: false
+-      matrix:
+-        os: [ubuntu-latest, macos-latest, windows-latest]
+-    runs-on: ${{ matrix.os }}
++  verify:
++    runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v5
+-      - name: Set up JDK 8
 +
-+on:
-+  push:
-+    branches:
-+      - main
-+  pull_request:
-+    branches:
-+      - main
++      - name: Set up JDK 17
+         uses: actions/setup-java@v5
+         with:
+           distribution: corretto
+-          java-version: 8
+-      - name: Build distribution
+-        shell: bash
+-        run: mvn -B clean package -pl distribution -am -DskipTests
+-      - name: Upload integration-test logs
++          java-version: 17
 +
-+env:
-+  MAVEN_OPTS: -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=3
-+  MAVEN_ARGS: --batch-mode --no-transfer-progress
-+
-+jobs:
-+  build:
-+    strategy:
-+      fail-fast: false
-+      matrix:
-+        os: [ubuntu-latest, macos-latest, windows-latest]
-+    runs-on: ${{ matrix.os }}
-+    steps:
-+      - uses: actions/checkout@v5
-+      - name: Set up JDK 8
-+        uses: actions/setup-java@v5
++      - name: Cache Maven packages
++        uses: actions/cache@v5
 +        with:
-+          distribution: corretto
-+          java-version: 8
-+      - name: Build distribution
-+        shell: bash
-+        run: mvn -B clean package -pl distribution -am -DskipTests
-+      - name: Upload integration-test logs
-+        if: always()
-+        uses: actions/upload-artifact@v5
-+        with:
-+          name: integration-test-logs-${{ matrix.os }}
-+          path: |
-+            integration-test/**/*.log
-+            integration-test/**/surefire-reports/
-+            integration-test/**/failsafe-reports/
-+          if-no-files-found: ignore
++          path: ~/.m2
++          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
++          restore-keys: ${{ runner.os }}-m2-
++
++      - name: Build and Verify
++        run: mvn clean verify -P with-integration-tests -DskipUTs ${{ env.MAVEN_ARGS }}
++
++      - name: Upload integration test logs
+         if: always()
+         uses: actions/upload-artifact@v5
+         with:
+-          name: integration-test-logs-${{ matrix.os }}
+-          path: |
+-            integration-test/**/*.log
+-            integration-test/**/surefire-reports/
+-            integration-test/**/failsafe-reports/
+-          if-no-files-found: ignore
+\ No newline at end of file
++          name: integration-test-logs
++          path: integration-test/target/log
++          retention-days: 30
+\ No newline at end of file
+diff --git a/2.6.4.patch b/2.6.4.patch
+index cac4993e16..e69de29bb2 100644
+--- a/2.6.4.patch
++++ b/2.6.4.patch
+@@ -1,136 +0,0 @@
+-diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+-new file mode 100644
+-index 0000000000..1111111111
+---- /dev/null
+-+++ b/.github/workflows/ci.yml
+-@@ -0,0 +1,62 @@
+-+# Licensed to the Apache Software Foundation (ASF) under one
+-+# or more contributor license agreements.  See the NOTICE file
+-+# distributed with this work for additional information
+-+# regarding copyright ownership.  The ASF licenses this file
+-+# to you under the Apache License, Version 2.0 (the
+-+# "License"); you may not use this file except in compliance
+-+# with the License.  You may obtain a copy of the License at
+-+#
+-+#     http://www.apache.org/licenses/LICENSE-2.0
+-+#
+-+# Unless required by applicable law or agreed to in writing,
+-+# software distributed under the License is distributed on an
+-+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+-+# KIND, either express or implied.  See the License for the
+-+# specific language governing permissions and limitations
+-+# under the License.
+-+#
+-+
+-+name: CI
+-+
+-+on:
+-+  push:
+-+    branches:
+-+      - main
+-+  pull_request:
+-+    branches:
+-+      - main
+-+
+-+env:
+-+  MAVEN_OPTS: -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.http.retryHandler.class=standard -Dmaven.wagon.http.retryHandler.count=3
+-+  MAVEN_ARGS: --batch-mode --no-transfer-progress
+-+
+-+jobs:
+-+  build:
+-+    strategy:
+-+      fail-fast: false
+-+      matrix:
+-+        os: [ubuntu-latest, macos-latest, windows-latest]
+-+    runs-on: ${{ matrix.os }}
+-+    steps:
+-+      - uses: actions/checkout@v5
+-+      - name: Set up JDK 8
+-+        uses: actions/setup-java@v5
+-+        with:
+-+          distribution: corretto
+-+          java-version: 8
+-+      - name: Build distribution
+-+        shell: bash
+-+        run: mvn -B clean package -pl distribution -am -DskipTests
+-+      - name: Upload integration-test logs
+-+        if: always()
+-+        uses: actions/upload-artifact@v5
+-+        with:
+-+          name: integration-test-logs-${{ matrix.os }}
+-+          path: |
+-+            integration-test/**/*.log
+-+            integration-test/**/surefire-reports/
+-+            integration-test/**/failsafe-reports/
+-+          if-no-files-found: ignore
+-diff --git a/Dockerfile b/Dockerfile
+-new file mode 100644
+-index 0000000000..2222222222
+---- /dev/null
+-+++ b/Dockerfile
+-@@ -0,0 +1,27 @@
+-+# Licensed to the Apache Software Foundation (ASF) under one
+-+# or more contributor license agreements.  See the NOTICE file
+-+# distributed with this work for additional information
+-+# regarding copyright ownership.  The ASF licenses this file
+-+# to you under the Apache License, Version 2.0 (the
+-+# "License"); you may not use this file except in compliance
+-+# with the License.  You may obtain a copy of the License at
+-+#
+-+#     http://www.apache.org/licenses/LICENSE-2.0
+-+#
+-+# Unless required by applicable law or agreed to in writing,
+-+# software distributed under the License is distributed on an
+-+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+-+# KIND, either express or implied.  See the License for the
+-+# specific language governing permissions and limitations
+-+# under the License.
+-+#
+-+
+-+FROM openjdk:11-slim
+-+
+-+ARG IOTDB_VERSION
+-+
+-+COPY distribution/target/iotdb-${IOTDB_VERSION}/ /opt/iotdb
+-+
+-+WORKDIR /opt/iotdb
+-+
+-+EXPOSE 6667
+-+
+-+CMD sbin/start-standalone.sh && tail -F logs/*.log
+-diff --git a/Makefile b/Makefile
+-new file mode 100644
+-index 0000000000..3333333333
+---- /dev/null
+-+++ b/Makefile
+-@@ -0,0 +1,33 @@
+-+# Licensed to the Apache Software Foundation (ASF) under one
+-+# or more contributor license agreements.  See the NOTICE file
+-+# distributed with this work for additional information
+-+# regarding copyright ownership.  The ASF licenses this file
+-+# to you under the Apache License, Version 2.0 (the
+-+# "License"); you may not use this file except in compliance
+-+# with the License.  You may obtain a copy of the License at
+-+#
+-+#     http://www.apache.org/licenses/LICENSE-2.0
+-+#
+-+# Unless required by applicable law or agreed to in writing,
+-+# software distributed under the License is distributed on an
+-+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+-+# KIND, either express or implied.  See the License for the
+-+# specific language governing permissions and limitations
+-+# under the License.
+-+#
+-+
+-+IOTDB_VERSION ?= 2.0.7-SNAPSHOT
+-+IMAGE_NAME    ?= apache-iotdb
+-+CONTAINER_NAME ?= iotdb-standalone
+-+PORT          ?= 6667
+-+
+-+.PHONY: docker-build docker-run
+-+
+-+docker-build:
+-+	@echo docker build --build-arg IOTDB_VERSION=$(IOTDB_VERSION) -t $(IMAGE_NAME):$(IOTDB_VERSION) .
+-+
+-+docker-run:
+-+	@echo docker run --rm --name $(CONTAINER_NAME) -p $(PORT):6667 $(IMAGE_NAME):$(IOTDB_VERSION)
+\ No newline at end of file
 diff --git a/Dockerfile b/Dockerfile
-new file mode 100644
-index 0000000000..2222222222
---- /dev/null
+index f30758cbba..abb608353b 100644
+--- a/Dockerfile
 +++ b/Dockerfile
-@@ -0,0 +1,27 @@
-+# Licensed to the Apache Software Foundation (ASF) under one
-+# or more contributor license agreements.  See the NOTICE file
-+# distributed with this work for additional information
-+# regarding copyright ownership.  The ASF licenses this file
-+# to you under the Apache License, Version 2.0 (the
-+# "License"); you may not use this file except in compliance
-+# with the License.  You may obtain a copy of the License at
+@@ -1,3 +1,4 @@
 +#
-+#     http://www.apache.org/licenses/LICENSE-2.0
-+#
-+# Unless required by applicable law or agreed to in writing,
-+# software distributed under the License is distributed on an
-+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-+# KIND, either express or implied.  See the License for the
-+# specific language governing permissions and limitations
-+# under the License.
-+#
+ # Licensed to the Apache Software Foundation (ASF) under one
+ # or more contributor license agreements.  See the NOTICE file
+ # distributed with this work for additional information
+@@ -16,14 +17,27 @@
+ # under the License.
+ #
+ 
+-FROM openjdk:11-slim
++FROM eclipse-temurin:11-jre-slim
 +
-+FROM openjdk:11-slim
++ARG IOTDB_VERSION=2.0.7-SNAPSHOT
 +
-+ARG IOTDB_VERSION
++RUN apt-get update \
++  && apt-get install -y unzip \
++  && rm -rf /var/lib/apt/lists/*
+ 
+-ARG IOTDB_VERSION
++COPY distribution/target/apache-iotdb-${IOTDB_VERSION}-all-bin.zip /tmp/
+ 
+-COPY distribution/target/iotdb-${IOTDB_VERSION}/ /opt/iotdb
++RUN unzip /tmp/apache-iotdb-${IOTDB_VERSION}-all-bin.zip -d /opt \
++  && rm /tmp/apache-iotdb-${IOTDB_VERSION}-all-bin.zip \
++  && mv /opt/apache-iotdb-${IOTDB_VERSION}-all-bin /opt/iotdb
 +
-+COPY distribution/target/iotdb-${IOTDB_VERSION}/ /opt/iotdb
++ENV IOTDB_HOME=/opt/iotdb
+ 
+ WORKDIR /opt/iotdb
+ 
+ EXPOSE 6667
+ 
+-CMD sbin/start-standalone.sh && tail -F logs/*.log
+\ No newline at end of file
++VOLUME /opt/iotdb/data
++VOLUME /opt/iotdb/logs
 +
-+WORKDIR /opt/iotdb
-+
-+EXPOSE 6667
-+
-+CMD sbin/start-standalone.sh && tail -F logs/*.log
-diff --git a/Makefile b/Makefile
-new file mode 100644
-index 0000000000..3333333333
---- /dev/null
-+++ b/Makefile
-@@ -0,0 +1,33 @@
-+# Licensed to the Apache Software Foundation (ASF) under one
-+# or more contributor license agreements.  See the NOTICE file
-+# distributed with this work for additional information
-+# regarding copyright ownership.  The ASF licenses this file
-+# to you under the Apache License, Version 2.0 (the
-+# "License"); you may not use this file except in compliance
-+# with the License.  You may obtain a copy of the License at
-+#
-+#     http://www.apache.org/licenses/LICENSE-2.0
-+#
-+# Unless required by applicable law or agreed to in writing,
-+# software distributed under the License is distributed on an
-+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-+# KIND, either express or implied.  See the License for the
-+# specific language governing permissions and limitations
-+# under the License.
-+#
-+
-+IOTDB_VERSION ?= 2.0.7-SNAPSHOT
-+IMAGE_NAME    ?= apache-iotdb
-+CONTAINER_NAME ?= iotdb-standalone
-+PORT          ?= 6667
-+
-+.PHONY: docker-build docker-run
-+
-+docker-build:
-+	@echo docker build --build-arg IOTDB_VERSION=$(IOTDB_VERSION) -t $(IMAGE_NAME):$(IOTDB_VERSION) .
-+
-+docker-run:
-+	@echo docker run --rm --name $(CONTAINER_NAME) -p $(PORT):6667 $(IMAGE_NAME):$(IOTDB_VERSION)
++ENTRYPOINT ["/opt/iotdb/sbin/start-standalone.sh"]
+\ No newline at end of file
