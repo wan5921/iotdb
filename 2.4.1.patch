@@ -1,0 +1,608 @@
+diff --git a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4 b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4
+index 54d53bab67..3154e7999b 100644
+--- a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4
++++ b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4
+@@ -44,7 +44,6 @@ keyWords
+     | AND
+     | ANY
+     | APPEND
+-    | AS
+     | ASC
+     | ATTRIBUTES
+     | AVAILABLE
+@@ -234,7 +233,6 @@ keyWords
+     | SPACE
+     | SQL_DIALECT
+     | STORAGE
+-    | START
+     | STARTTIME
+     | STATEFUL
+     | STATELESS
+diff --git a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4 b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4
+index 3e94667a2f..4fe5bd1140 100644
+--- a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4
++++ b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4
+@@ -1387,10 +1387,6 @@ setSqlDialect
+     ;
+ 
+ showCurrentSqlDialect
+-    : SHOW CURRENT_SQL_DIALECT
+-    ;
+-
+-showCurrentUser
+     : SHOW CURRENT_USER
+     ;
+ 
+diff --git a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4 b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4
+index 59bac72fc7..669733d9f3 100644
+--- a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4
++++ b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4
+@@ -97,10 +97,6 @@ APPEND
+     : A P P E N D
+     ;
+ 
+-AS
+-    : A S
+-    ;
+-
+ ASC
+     : A S C
+     ;
+@@ -871,10 +867,6 @@ START
+     : S T A R T
+     ;
+ 
+-STARTTIME
+-    : S T A R T T I M E
+-    ;
+-
+ STATEFUL
+     : S T A T E F U L
+     ;
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java
+index fbc817d4f6..3e840fa5e7 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java
+@@ -253,10 +253,6 @@ public class IoTDBConfig {
+   private String queryDir =
+       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.QUERY_FOLDER_NAME;
+ 
+-  /** External lib directory, stores user-uploaded JAR files */
+-  private String extDir = IoTDBConstant.EXT_FOLDER_NAME;
+-
+-  /** External lib directory for UDF, stores user-uploaded JAR files */
+   private String udfDir =
+       IoTDBConstant.EXT_FOLDER_NAME + File.separator + IoTDBConstant.UDF_FOLDER_NAME;
+ 
+@@ -1674,22 +1670,6 @@ public class IoTDBConfig {
+     return queryDir;
+   }
+ 
+-  public void setQueryDir(String queryDir) {
+-    this.queryDir = queryDir;
+-  }
+-
+-  public String getRatisDataRegionSnapshotDir() {
+-    return ratisDataRegionSnapshotDir;
+-  }
+-
+-  public void setRatisDataRegionSnapshotDir(String ratisDataRegionSnapshotDir) {
+-    this.ratisDataRegionSnapshotDir = ratisDataRegionSnapshotDir;
+-  }
+-
+-  public String getConsensusDir() {
+-    return consensusDir;
+-  }
+-
+   public void setConsensusDir(String consensusDir) {
+     this.consensusDir = consensusDir;
+     setDataRegionConsensusDir(
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java
+index 5debbb7197..25a4db0a1b 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java
+@@ -344,15 +344,6 @@ public class IoTDBDescriptor {
+ 
+     conf.setQueryDir(
+         FilePathUtils.regularizePath(conf.getSystemDir() + IoTDBConstant.QUERY_FOLDER_NAME));
+-    String[] defaultTierDirs = new String[conf.getTierDataDirs().length];
+-    for (int i = 0; i < defaultTierDirs.length; ++i) {
+-      defaultTierDirs[i] = String.join(",", conf.getTierDataDirs()[i]);
+-    }
+-    conf.setTierDataDirs(
+-        parseDataDirs(
+-            properties.getProperty(
+-                "dn_data_dirs", String.join(IoTDBConstant.TIER_SEPARATOR, defaultTierDirs))));
+-
+     conf.setConsensusDir(properties.getProperty("dn_consensus_dir", conf.getConsensusDir()));
+ 
+     long forceMlogPeriodInMs =
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java
+index 18f15eea8f..68c093b0e1 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java
+@@ -271,10 +271,6 @@ public class DatasetHeaderFactory {
+     return new DatasetHeader(ColumnHeaderConstant.showTablesDetailsColumnHeaders, true);
+   }
+ 
+-  public static DatasetHeader getShowCurrentUserHeader() {
+-    return new DatasetHeader(ColumnHeaderConstant.SHOW_CURRENT_USER_COLUMN_HEADERS, true);
+-  }
+-
+   public static DatasetHeader getShowCurrentDatabaseHeader() {
+     return new DatasetHeader(ColumnHeaderConstant.SHOW_CURRENT_DATABASE_COLUMN_HEADERS, true);
+   }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TreeConfigTaskVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TreeConfigTaskVisitor.java
+index 8b7792bca9..ba0a606345 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TreeConfigTaskVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TreeConfigTaskVisitor.java
+@@ -101,7 +101,6 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.session.SetSqlDiale
+ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentSqlDialectTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentUserTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.AuthorizerTask;
+-import org.apache.iotdb.db.queryengine.plan.execution.config.sys.ClearCacheTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.FlushTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.KillQueryTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.LoadConfigurationTask;
+@@ -220,7 +219,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatem
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowConfigurationStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.StopRepairDataStatement;
+@@ -961,12 +959,6 @@ public class TreeConfigTaskVisitor extends StatementVisitor<IConfigTask, MPPQuer
+     return new ShowCurrentUserTask(context.getSession().getUserName());
+   }
+ 
+-  @Override
+-  public IConfigTask visitShowCurrentSqlDialect(
+-      ShowCurrentSqlDialectStatement node, MPPQueryContext context) {
+-    return new ShowCurrentSqlDialectTask(context.getSession().getSqlDialect().name());
+-  }
+-
+   @Override
+   public IConfigTask visitCreateTraining(
+       CreateTrainingStatement createTrainingStatement, MPPQueryContext context) {
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java
+index b43e4693d5..06a1381178 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java
+@@ -246,9 +246,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.RepairDataPartitionTab
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
+@@ -5131,6 +5129,3 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
+ 
+   @Override
+   public Statement visitShowCurrentUser(IoTDBSqlParser.ShowCurrentUserContext ctx) {
+-    return new ShowCurrentUserStatement();
+-  }
+-}
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/security/TreeAccessCheckVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/security/TreeAccessCheckVisitor.java
+index 68658529e7..90cbfa357a 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/security/TreeAccessCheckVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/security/TreeAccessCheckVisitor.java
+@@ -153,7 +153,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.RepairDataPartitionTab
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
+@@ -1803,15 +1802,6 @@ public class TreeAccessCheckVisitor extends StatementVisitor<TSStatus, TreeAcces
+       ShowCurrentUserStatement statement, TreeAccessCheckContext context) {
+     return SUCCEED;
+   }
+-
+-  @Override
+-  public TSStatus visitShowDataNodes(
+-      ShowDataNodesStatement statement, TreeAccessCheckContext context) {
+-    return checkGlobalAuth(context, PrivilegeType.MAINTAIN, () -> "");
+-  }
+-
+-  @Override
+-  public TSStatus visitShowQueries(ShowQueriesStatement statement, TreeAccessCheckContext context) {
+     if (checkHasGlobalAuth(context, PrivilegeType.MAINTAIN, () -> "")) {
+       statement.setAllowedUsername(context.getUsername());
+     }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java
+index 847e850c52..b93fb485f1 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java
+@@ -142,9 +142,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.RepairDataPartitionTab
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowConfigurationStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+@@ -774,11 +772,6 @@ public abstract class StatementVisitor<R, C> {
+     return visitStatement(setSqlDialectStatement, context);
+   }
+ 
+-  public R visitShowCurrentSqlDialect(
+-      ShowCurrentSqlDialectStatement showCurrentSqlDialectStatement, C context) {
+-    return visitStatement(showCurrentSqlDialectStatement, context);
+-  }
+-
+   public R visitShowCurrentUser(ShowCurrentUserStatement showCurrentUserStatement, C context) {
+     return visitStatement(showCurrentUserStatement, context);
+   }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
+index 93a04bf401..4dfba49ab0 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
+@@ -26,7 +26,6 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
+ import org.apache.iotdb.commons.client.exception.ClientManagerException;
+ import org.apache.iotdb.commons.cluster.NodeStatus;
+ import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
+-import org.apache.iotdb.commons.conf.CommonDescriptor;
+ import org.apache.iotdb.commons.conf.IoTDBConstant;
+ import org.apache.iotdb.commons.consensus.DataRegionId;
+ import org.apache.iotdb.commons.exception.MetadataException;
+@@ -219,9 +218,6 @@ import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Future;
+ import java.util.concurrent.TimeUnit;
+-import java.util.concurrent.atomic.AtomicBoolean;
+-import java.util.concurrent.atomic.AtomicInteger;
+-import java.util.concurrent.atomic.AtomicLong;
+ import java.util.concurrent.locks.Condition;
+ import java.util.concurrent.locks.ReadWriteLock;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
+@@ -378,16 +374,6 @@ public class DataRegion implements IDataRegionForQuery {
+ 
+   private final DataRegionMetrics metrics;
+ 
+-  private ILoadDiskSelector ordinaryLoadDiskSelector;
+-  private ILoadDiskSelector pipeAndIoTV2LoadDiskSelector;
+-
+-  private final boolean isTableModel;
+-
+-  /** Delay analyzer for tracking data arrival delays and calculating safe watermarks */
+-  private final DelayAnalyzer delayAnalyzer;
+-
+-  /**
+-   * Construct a database processor.
+    *
+    * @param systemDir system dir path
+    * @param dataRegionIdString data region id e.g. 1
+@@ -467,7 +453,6 @@ public class DataRegion implements IDataRegionForQuery {
+     }
+ 
+     initDiskSelector();
+-
+     this.metrics = new DataRegionMetrics(this);
+     MetricService.getInstance().addMetricSet(metrics);
+   }
+@@ -519,267 +504,6 @@ public class DataRegion implements IDataRegionForQuery {
+         ILoadDiskSelector.initDiskSelector(config.getLoadDiskSelectStrategy(), dirs, selector);
+     pipeAndIoTV2LoadDiskSelector =
+         ILoadDiskSelector.initDiskSelector(
+-            config.getLoadDiskSelectStrategyForIoTV2AndPipe(), dirs, selector);
+-  }
+-
+-  @Override
+-  public String getDatabaseName() {
+-    return databaseName;
+-  }
+-
+-  public boolean isTableModel() {
+-    return isTableModel;
+-  }
+-
+-  public boolean isReady() {
+-    return isReady;
+-  }
+-
+-  public List<Callable<Void>> getAsyncTsFileResourceRecoverTaskList() {
+-    return asyncTsFileResourceRecoverTaskList;
+-  }
+-
+-  public void clearAsyncTsFileResourceRecoverTaskList() {
+-    asyncTsFileResourceRecoverTaskList.clear();
+-  }
+-
+-  /** this class is used to store recovering context. */
+-  private class DataRegionRecoveryContext {
+-
+-    /** number of files to be recovered. */
+-    private final long numOfFilesToRecover;
+-
+-    /** number of already recovered files. */
+-    private long recoveredFilesNum;
+-
+-    /** last recovery log time. */
+-    private long lastLogTime;
+-
+-    /** recover performers of unsealed TsFiles. */
+-    private final List<UnsealedTsFileRecoverPerformer> recoverPerformers = new ArrayList<>();
+-
+-    public DataRegionRecoveryContext(long numOfFilesToRecover) {
+-      this.numOfFilesToRecover = numOfFilesToRecover;
+-      this.recoveredFilesNum = 0;
+-      this.lastLogTime = System.currentTimeMillis();
+-    }
+-
+-    public void incrementRecoveredFilesNum() {
+-      recoveredFilesNum++;
+-      if (recoveredFilesNum < numOfFilesToRecover) {
+-        if (System.currentTimeMillis() - lastLogTime > config.getRecoveryLogIntervalInMs()) {
+-          logger.info(
+-              "The TsFiles of data region {}[{}] has recovered {}/{}.",
+-              databaseName,
+-              dataRegionIdString,
+-              recoveredFilesNum,
+-              numOfFilesToRecover);
+-          lastLogTime = System.currentTimeMillis();
+-        }
+-      } else {
+-        logger.info(
+-            "The TsFiles of data region {}[{}] has recovered completely {}/{}.",
+-            databaseName,
+-            dataRegionIdString,
+-            numOfFilesToRecover,
+-            numOfFilesToRecover);
+-      }
+-    }
+-  }
+-
+-  /** recover from file */
+-  @SuppressWarnings({"squid:S3776", "squid:S6541"}) // Suppress high Cognitive Complexity warning
+-  private void recover() throws DataRegionException {
+-    try {
+-      recoverCompaction();
+-    } catch (Exception e) {
+-      // signal wal recover manager to recover this region's files
+-      WALRecoverManager.getInstance()
+-          .getAllDataRegionScannedLatch()
+-          .countDownWithException(e.getMessage());
+-      throw new DataRegionException(e);
+-    }
+-
+-    try {
+-      // collect candidate TsFiles from sequential and unsequential data directory
+-      // split by partition so that we can find the last file of each partition and decide to
+-      // close it or not
+-      Map<Long, List<TsFileResource>> partitionTmpSeqTsFiles =
+-          getAllFiles(TierManager.getInstance().getAllLocalSequenceFileFolders());
+-      Map<Long, List<TsFileResource>> partitionTmpUnseqTsFiles =
+-          getAllFiles(TierManager.getInstance().getAllLocalUnSequenceFileFolders());
+-      DataRegionRecoveryContext dataRegionRecoveryContext =
+-          new DataRegionRecoveryContext(
+-              partitionTmpSeqTsFiles.values().stream().mapToLong(List::size).sum()
+-                  + partitionTmpUnseqTsFiles.values().stream().mapToLong(List::size).sum());
+-      // submit unsealed TsFiles to recover
+-      List<WALRecoverListener> recoverListeners = new ArrayList<>();
+-      for (List<TsFileResource> value : partitionTmpSeqTsFiles.values()) {
+-        // tsFiles without resource file are unsealed
+-        for (TsFileResource resource : value) {
+-          if (resource.resourceFileExists()) {
+-            FileMetrics.getInstance()
+-                .addTsFile(
+-                    resource.getDatabaseName(),
+-                    resource.getDataRegionId(),
+-                    resource.getTsFile().length(),
+-                    true,
+-                    resource.getTsFile().getName());
+-            if (ModificationFile.getExclusiveMods(resource.getTsFile()).exists()) {
+-              // update mods file metrics
+-              resource.getExclusiveModFile();
+-            } else {
+-              resource.upgradeModFile(upgradeModFileThreadPool);
+-            }
+-          }
+-        }
+-        while (!value.isEmpty()) {
+-          TsFileResource tsFileResource = value.get(value.size() - 1);
+-          if (tsFileResource.resourceFileExists()) {
+-            break;
+-          } else {
+-            value.remove(value.size() - 1);
+-            WALRecoverListener recoverListener =
+-                recoverUnsealedTsFile(tsFileResource, dataRegionRecoveryContext, true);
+-            if (recoverListener != null) {
+-              recoverListeners.add(recoverListener);
+-            }
+-          }
+-        }
+-      }
+-      for (List<TsFileResource> unseqTsFiles : partitionTmpUnseqTsFiles.values()) {
+-        List<TsFileResource> unsealedTsFiles = new ArrayList<>();
+-        // tsFiles without resource file are unsealed
+-        for (TsFileResource resource : unseqTsFiles) {
+-          if (resource.resourceFileExists()) {
+-            FileMetrics.getInstance()
+-                .addTsFile(
+-                    resource.getDatabaseName(),
+-                    resource.getDataRegionId(),
+-                    resource.getTsFile().length(),
+-                    false,
+-                    resource.getTsFile().getName());
+-          } else {
+-            WALRecoverListener recoverListener =
+-                recoverUnsealedTsFile(resource, dataRegionRecoveryContext, false);
+-            if (recoverListener != null) {
+-              recoverListeners.add(recoverListener);
+-            }
+-            unsealedTsFiles.add(resource);
+-          }
+-          if (ModificationFile.getExclusiveMods(resource.getTsFile()).exists()) {
+-            // update mods file metrics
+-            resource.getExclusiveModFile();
+-          } else {
+-            resource.upgradeModFile(upgradeModFileThreadPool);
+-          }
+-        }
+-        unseqTsFiles.removeAll(unsealedTsFiles);
+-      }
+-      // signal wal recover manager to recover this region's files
+-      WALRecoverManager.getInstance().getAllDataRegionScannedLatch().countDown();
+-      // recover sealed TsFiles
+-      if (!partitionTmpSeqTsFiles.isEmpty() || !partitionTmpUnseqTsFiles.isEmpty()) {
+-        long latestPartitionId = Long.MIN_VALUE;
+-        if (!partitionTmpSeqTsFiles.isEmpty()) {
+-          latestPartitionId =
+-              ((TreeMap<Long, List<TsFileResource>>) partitionTmpSeqTsFiles).lastKey();
+-        }
+-        if (!partitionTmpUnseqTsFiles.isEmpty()) {
+-          latestPartitionId =
+-              Math.max(
+-                  latestPartitionId,
+-                  ((TreeMap<Long, List<TsFileResource>>) partitionTmpUnseqTsFiles).lastKey());
+-        }
+-        File logFile = SystemFileFactory.INSTANCE.getFile(dataRegionSysDir, "FileTimeIndexCache_0");
+-        Map<TsFileID, FileTimeIndex> fileTimeIndexMap = new HashMap<>();
+-        if (logFile.exists()) {
+-          try {
+-            FileTimeIndexCacheReader logReader =
+-                new FileTimeIndexCacheReader(logFile, dataRegionIdString);
+-            logReader.read(fileTimeIndexMap);
+-          } catch (Exception e) {
+-            throw new RuntimeException(e);
+-          }
+-        }
+-        for (Entry<Long, List<TsFileResource>> partitionFiles : partitionTmpSeqTsFiles.entrySet()) {
+-          Callable<Void> asyncRecoverTask =
+-              recoverFilesInPartition(
+-                  partitionFiles.getKey(),
+-                  dataRegionRecoveryContext,
+-                  partitionFiles.getValue(),
+-                  fileTimeIndexMap,
+-                  true);
+-          if (asyncRecoverTask != null) {
+-            asyncTsFileResourceRecoverTaskList.add(asyncRecoverTask);
+-          }
+-        }
+-        for (Entry<Long, List<TsFileResource>> partitionFiles :
+-            partitionTmpUnseqTsFiles.entrySet()) {
+-          Callable<Void> asyncRecoverTask =
+-              recoverFilesInPartition(
+-                  partitionFiles.getKey(),
+-                  dataRegionRecoveryContext,
+-                  partitionFiles.getValue(),
+-                  fileTimeIndexMap,
+-                  false);
+-          if (asyncRecoverTask != null) {
+-            asyncTsFileResourceRecoverTaskList.add(asyncRecoverTask);
+-          }
+-        }
+-        if (config.isEnableSeparateData()) {
+-          TimePartitionManager.getInstance()
+-              .registerTimePartitionInfo(
+-                  new TimePartitionInfo(
+-                      new DataRegionId(Integer.parseInt(dataRegionIdString)),
+-                      latestPartitionId,
+-                      false,
+-                      Long.MAX_VALUE,
+-                      lastFlushTimeMap.getMemSize(latestPartitionId)));
+-        }
+-      }
+-      // wait until all unsealed TsFiles have been recovered
+-      for (WALRecoverListener recoverListener : recoverListeners) {
+-        if (recoverListener.waitForResult() == WALRecoverListener.Status.FAILURE) {
+-          logger.error(
+-              "Fail to recover unsealed TsFile {}, skip it.",
+-              recoverListener.getFilePath(),
+-              recoverListener.getCause());
+-        }
+-        // update VSGRecoveryContext
+-        dataRegionRecoveryContext.incrementRecoveredFilesNum();
+-      }
+-      // recover unsealed TsFiles, sort make sure last flush time not be replaced by early files
+-      dataRegionRecoveryContext.recoverPerformers.sort(
+-          (p1, p2) ->
+-              compareFileName(
+-                  p1.getTsFileResource().getTsFile(), p2.getTsFileResource().getTsFile()));
+-      for (UnsealedTsFileRecoverPerformer recoverPerformer :
+-          dataRegionRecoveryContext.recoverPerformers) {
+-        recoverUnsealedTsFileCallBack(recoverPerformer);
+-      }
+-      for (TsFileResource resource : tsFileManager.getTsFileList(true)) {
+-        long partitionNum = resource.getTimePartition();
+-        updatePartitionFileVersion(partitionNum, resource.getVersion());
+-      }
+-      for (TsFileResource resource : tsFileManager.getTsFileList(false)) {
+-        long partitionNum = resource.getTimePartition();
+-        updatePartitionFileVersion(partitionNum, resource.getVersion());
+-      }
+-    } catch (IOException e) {
+-      // signal wal recover manager to recover this region's files
+-      WALRecoverManager.getInstance()
+-          .getAllDataRegionScannedLatch()
+-          .countDownWithException(e.getMessage());
+-      throw new DataRegionException(e);
+-    }
+-
+-    if (asyncTsFileResourceRecoverTaskList.isEmpty()) {
+-      initCompactionSchedule();
+-    }
+-
+-    if (StorageEngine.getInstance().isReadyForReadAndWrite()) {
+-      if (config.getDataRegionConsensusProtocolClass().equals(ConsensusFactory.IOT_CONSENSUS_V2)) {
+         IWALNode walNode =
+             WALManager.getInstance()
+                 .applyForWALNode(databaseName + FILE_NAME_SEPARATOR + dataRegionIdString);
+diff --git a/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties b/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties
+index 4015a4b2f3..b0081f2adb 100644
+--- a/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties
++++ b/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties
+@@ -60,8 +60,6 @@ data_replication_factor=1
+ 
+ # dn_data_dirs=data/datanode/data
+ # dn_wal_dirs=data/datanode/wal
+-
+-####################
+ ### Metric Configuration
+ ####################
+ 
+diff --git a/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java b/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java
+index 186f7daa68..dd131caac2 100644
+--- a/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java
++++ b/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java
+@@ -764,33 +764,8 @@ public class ColumnHeaderConstant {
+           new ColumnHeader(TABLE_NAME, TSDataType.TEXT),
+           new ColumnHeader(COLUMN_TTL, TSDataType.TEXT));
+ 
+-  public static final List<ColumnHeader> showTablesDetailsColumnHeaders =
+-      ImmutableList.of(
+-          new ColumnHeader(TABLE_NAME, TSDataType.TEXT),
+-          new ColumnHeader(COLUMN_TTL, TSDataType.TEXT),
+-          new ColumnHeader(STATUS, TSDataType.TEXT),
+-          new ColumnHeader(COMMENT, TSDataType.TEXT),
+-          new ColumnHeader(TABLE_TYPE, TSDataType.TEXT));
+-
+-  public static final List<ColumnHeader> LIST_USER_OR_ROLE_PRIVILEGES_COLUMN_HEADERS =
+-      ImmutableList.of(
+           new ColumnHeader(ROLE, TSDataType.TEXT),
+           new ColumnHeader(SCOPE, TSDataType.TEXT),
+-          new ColumnHeader(PRIVILEGES, TSDataType.TEXT),
+-          new ColumnHeader(GRANT_OPTION, TSDataType.BOOLEAN));
+-
+-  public static final List<ColumnHeader> SHOW_CURRENT_USER_COLUMN_HEADERS =
+-      ImmutableList.of(new ColumnHeader(CURRENT_USER, TSDataType.STRING));
+-
+-  public static final List<ColumnHeader> SHOW_CURRENT_DATABASE_COLUMN_HEADERS =
+-      ImmutableList.of(new ColumnHeader(CURRENT_DATABASE, TSDataType.STRING));
+-
+-  public static final List<ColumnHeader> SHOW_CURRENT_SQL_DIALECT_COLUMN_HEADERS =
+-      ImmutableList.of(new ColumnHeader(CURRENT_SQL_DIALECT, TSDataType.STRING));
+-
+-  public static final List<ColumnHeader> SHOW_CURRENT_TIMESTAMP_COLUMN_HEADERS =
+-      ImmutableList.of(new ColumnHeader(CURRENT_TIMESTAMP, TSDataType.TIMESTAMP));
+-
+   public static final List<ColumnHeader> SHOW_CONFIGURATIONS_COLUMN_HEADERS =
+       ImmutableList.of(
+           new ColumnHeader(SHOW_CONFIGURATIONS_NAME, TSDataType.TEXT),

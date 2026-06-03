@@ -97,10 +97,6 @@ APPEND
     : A P P E N D
     ;
 
-AS
-    : A S
-    ;
-
 ASC
     : A S C
     ;
@@ -869,10 +865,6 @@ STORAGE
 
 START
     : S T A R T
-    ;
-
-STARTTIME
-    : S T A R T T I M E
     ;
 
 STATEFUL

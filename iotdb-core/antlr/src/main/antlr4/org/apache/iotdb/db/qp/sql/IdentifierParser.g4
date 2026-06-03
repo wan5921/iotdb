@@ -44,7 +44,6 @@ keyWords
     | AND
     | ANY
     | APPEND
-    | AS
     | ASC
     | ATTRIBUTES
     | AVAILABLE
@@ -234,7 +233,6 @@ keyWords
     | SPACE
     | SQL_DIALECT
     | STORAGE
-    | START
     | STARTTIME
     | STATEFUL
     | STATELESS

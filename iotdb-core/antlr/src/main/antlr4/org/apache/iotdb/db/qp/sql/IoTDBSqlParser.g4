@@ -1387,10 +1387,6 @@ setSqlDialect
     ;
 
 showCurrentSqlDialect
-    : SHOW CURRENT_SQL_DIALECT
-    ;
-
-showCurrentUser
     : SHOW CURRENT_USER
     ;
 

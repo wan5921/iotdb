@@ -271,10 +271,6 @@ public class DatasetHeaderFactory {
     return new DatasetHeader(ColumnHeaderConstant.showTablesDetailsColumnHeaders, true);
   }
 
-  public static DatasetHeader getShowCurrentUserHeader() {
-    return new DatasetHeader(ColumnHeaderConstant.SHOW_CURRENT_USER_COLUMN_HEADERS, true);
-  }
-
   public static DatasetHeader getShowCurrentDatabaseHeader() {
     return new DatasetHeader(ColumnHeaderConstant.SHOW_CURRENT_DATABASE_COLUMN_HEADERS, true);
   }

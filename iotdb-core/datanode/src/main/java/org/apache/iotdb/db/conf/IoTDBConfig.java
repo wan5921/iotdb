@@ -253,10 +253,6 @@ public class IoTDBConfig {
   private String queryDir =
       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.QUERY_FOLDER_NAME;
 
-  /** External lib directory, stores user-uploaded JAR files */
-  private String extDir = IoTDBConstant.EXT_FOLDER_NAME;
-
-  /** External lib directory for UDF, stores user-uploaded JAR files */
   private String udfDir =
       IoTDBConstant.EXT_FOLDER_NAME + File.separator + IoTDBConstant.UDF_FOLDER_NAME;
 
@@ -1672,22 +1668,6 @@ public class IoTDBConfig {
 
   public String getQueryDir() {
     return queryDir;
-  }
-
-  public void setQueryDir(String queryDir) {
-    this.queryDir = queryDir;
-  }
-
-  public String getRatisDataRegionSnapshotDir() {
-    return ratisDataRegionSnapshotDir;
-  }
-
-  public void setRatisDataRegionSnapshotDir(String ratisDataRegionSnapshotDir) {
-    this.ratisDataRegionSnapshotDir = ratisDataRegionSnapshotDir;
-  }
-
-  public String getConsensusDir() {
-    return consensusDir;
   }
 
   public void setConsensusDir(String consensusDir) {

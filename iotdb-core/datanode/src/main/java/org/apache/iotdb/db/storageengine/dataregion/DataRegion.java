@@ -26,7 +26,6 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.client.exception.ClientManagerException;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
-import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.consensus.DataRegionId;
 import org.apache.iotdb.commons.exception.MetadataException;
@@ -219,9 +218,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -378,16 +374,6 @@ public class DataRegion implements IDataRegionForQuery {
 
   private final DataRegionMetrics metrics;
 
-  private ILoadDiskSelector ordinaryLoadDiskSelector;
-  private ILoadDiskSelector pipeAndIoTV2LoadDiskSelector;
-
-  private final boolean isTableModel;
-
-  /** Delay analyzer for tracking data arrival delays and calculating safe watermarks */
-  private final DelayAnalyzer delayAnalyzer;
-
-  /**
-   * Construct a database processor.
    *
    * @param systemDir system dir path
    * @param dataRegionIdString data region id e.g. 1
@@ -467,7 +453,6 @@ public class DataRegion implements IDataRegionForQuery {
     }
 
     initDiskSelector();
-
     this.metrics = new DataRegionMetrics(this);
     MetricService.getInstance().addMetricSet(metrics);
   }
@@ -519,267 +504,6 @@ public class DataRegion implements IDataRegionForQuery {
         ILoadDiskSelector.initDiskSelector(config.getLoadDiskSelectStrategy(), dirs, selector);
     pipeAndIoTV2LoadDiskSelector =
         ILoadDiskSelector.initDiskSelector(
-            config.getLoadDiskSelectStrategyForIoTV2AndPipe(), dirs, selector);
-  }
-
-  @Override
-  public String getDatabaseName() {
-    return databaseName;
-  }
-
-  public boolean isTableModel() {
-    return isTableModel;
-  }
-
-  public boolean isReady() {
-    return isReady;
-  }
-
-  public List<Callable<Void>> getAsyncTsFileResourceRecoverTaskList() {
-    return asyncTsFileResourceRecoverTaskList;
-  }
-
-  public void clearAsyncTsFileResourceRecoverTaskList() {
-    asyncTsFileResourceRecoverTaskList.clear();
-  }
-
-  /** this class is used to store recovering context. */
-  private class DataRegionRecoveryContext {
-
-    /** number of files to be recovered. */
-    private final long numOfFilesToRecover;
-
-    /** number of already recovered files. */
-    private long recoveredFilesNum;
-
-    /** last recovery log time. */
-    private long lastLogTime;
-
-    /** recover performers of unsealed TsFiles. */
-    private final List<UnsealedTsFileRecoverPerformer> recoverPerformers = new ArrayList<>();
-
-    public DataRegionRecoveryContext(long numOfFilesToRecover) {
-      this.numOfFilesToRecover = numOfFilesToRecover;
-      this.recoveredFilesNum = 0;
-      this.lastLogTime = System.currentTimeMillis();
-    }
-
-    public void incrementRecoveredFilesNum() {
-      recoveredFilesNum++;
-      if (recoveredFilesNum < numOfFilesToRecover) {
-        if (System.currentTimeMillis() - lastLogTime > config.getRecoveryLogIntervalInMs()) {
-          logger.info(
-              "The TsFiles of data region {}[{}] has recovered {}/{}.",
-              databaseName,
-              dataRegionIdString,
-              recoveredFilesNum,
-              numOfFilesToRecover);
-          lastLogTime = System.currentTimeMillis();
-        }
-      } else {
-        logger.info(
-            "The TsFiles of data region {}[{}] has recovered completely {}/{}.",
-            databaseName,
-            dataRegionIdString,
-            numOfFilesToRecover,
-            numOfFilesToRecover);
-      }
-    }
-  }
-
-  /** recover from file */
-  @SuppressWarnings({"squid:S3776", "squid:S6541"}) // Suppress high Cognitive Complexity warning
-  private void recover() throws DataRegionException {
-    try {
-      recoverCompaction();
-    } catch (Exception e) {
-      // signal wal recover manager to recover this region's files
-      WALRecoverManager.getInstance()
-          .getAllDataRegionScannedLatch()
-          .countDownWithException(e.getMessage());
-      throw new DataRegionException(e);
-    }
-
-    try {
-      // collect candidate TsFiles from sequential and unsequential data directory
-      // split by partition so that we can find the last file of each partition and decide to
-      // close it or not
-      Map<Long, List<TsFileResource>> partitionTmpSeqTsFiles =
-          getAllFiles(TierManager.getInstance().getAllLocalSequenceFileFolders());
-      Map<Long, List<TsFileResource>> partitionTmpUnseqTsFiles =
-          getAllFiles(TierManager.getInstance().getAllLocalUnSequenceFileFolders());
-      DataRegionRecoveryContext dataRegionRecoveryContext =
-          new DataRegionRecoveryContext(
-              partitionTmpSeqTsFiles.values().stream().mapToLong(List::size).sum()
-                  + partitionTmpUnseqTsFiles.values().stream().mapToLong(List::size).sum());
-      // submit unsealed TsFiles to recover
-      List<WALRecoverListener> recoverListeners = new ArrayList<>();
-      for (List<TsFileResource> value : partitionTmpSeqTsFiles.values()) {
-        // tsFiles without resource file are unsealed
-        for (TsFileResource resource : value) {
-          if (resource.resourceFileExists()) {
-            FileMetrics.getInstance()
-                .addTsFile(
-                    resource.getDatabaseName(),
-                    resource.getDataRegionId(),
-                    resource.getTsFile().length(),
-                    true,
-                    resource.getTsFile().getName());
-            if (ModificationFile.getExclusiveMods(resource.getTsFile()).exists()) {
-              // update mods file metrics
-              resource.getExclusiveModFile();
-            } else {
-              resource.upgradeModFile(upgradeModFileThreadPool);
-            }
-          }
-        }
-        while (!value.isEmpty()) {
-          TsFileResource tsFileResource = value.get(value.size() - 1);
-          if (tsFileResource.resourceFileExists()) {
-            break;
-          } else {
-            value.remove(value.size() - 1);
-            WALRecoverListener recoverListener =
-                recoverUnsealedTsFile(tsFileResource, dataRegionRecoveryContext, true);
-            if (recoverListener != null) {
-              recoverListeners.add(recoverListener);
-            }
-          }
-        }
-      }
-      for (List<TsFileResource> unseqTsFiles : partitionTmpUnseqTsFiles.values()) {
-        List<TsFileResource> unsealedTsFiles = new ArrayList<>();
-        // tsFiles without resource file are unsealed
-        for (TsFileResource resource : unseqTsFiles) {
-          if (resource.resourceFileExists()) {
-            FileMetrics.getInstance()
-                .addTsFile(
-                    resource.getDatabaseName(),
-                    resource.getDataRegionId(),
-                    resource.getTsFile().length(),
-                    false,
-                    resource.getTsFile().getName());
-          } else {
-            WALRecoverListener recoverListener =
-                recoverUnsealedTsFile(resource, dataRegionRecoveryContext, false);
-            if (recoverListener != null) {
-              recoverListeners.add(recoverListener);
-            }
-            unsealedTsFiles.add(resource);
-          }
-          if (ModificationFile.getExclusiveMods(resource.getTsFile()).exists()) {
-            // update mods file metrics
-            resource.getExclusiveModFile();
-          } else {
-            resource.upgradeModFile(upgradeModFileThreadPool);
-          }
-        }
-        unseqTsFiles.removeAll(unsealedTsFiles);
-      }
-      // signal wal recover manager to recover this region's files
-      WALRecoverManager.getInstance().getAllDataRegionScannedLatch().countDown();
-      // recover sealed TsFiles
-      if (!partitionTmpSeqTsFiles.isEmpty() || !partitionTmpUnseqTsFiles.isEmpty()) {
-        long latestPartitionId = Long.MIN_VALUE;
-        if (!partitionTmpSeqTsFiles.isEmpty()) {
-          latestPartitionId =
-              ((TreeMap<Long, List<TsFileResource>>) partitionTmpSeqTsFiles).lastKey();
-        }
-        if (!partitionTmpUnseqTsFiles.isEmpty()) {
-          latestPartitionId =
-              Math.max(
-                  latestPartitionId,
-                  ((TreeMap<Long, List<TsFileResource>>) partitionTmpUnseqTsFiles).lastKey());
-        }
-        File logFile = SystemFileFactory.INSTANCE.getFile(dataRegionSysDir, "FileTimeIndexCache_0");
-        Map<TsFileID, FileTimeIndex> fileTimeIndexMap = new HashMap<>();
-        if (logFile.exists()) {
-          try {
-            FileTimeIndexCacheReader logReader =
-                new FileTimeIndexCacheReader(logFile, dataRegionIdString);
-            logReader.read(fileTimeIndexMap);
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        }
-        for (Entry<Long, List<TsFileResource>> partitionFiles : partitionTmpSeqTsFiles.entrySet()) {
-          Callable<Void> asyncRecoverTask =
-              recoverFilesInPartition(
-                  partitionFiles.getKey(),
-                  dataRegionRecoveryContext,
-                  partitionFiles.getValue(),
-                  fileTimeIndexMap,
-                  true);
-          if (asyncRecoverTask != null) {
-            asyncTsFileResourceRecoverTaskList.add(asyncRecoverTask);
-          }
-        }
-        for (Entry<Long, List<TsFileResource>> partitionFiles :
-            partitionTmpUnseqTsFiles.entrySet()) {
-          Callable<Void> asyncRecoverTask =
-              recoverFilesInPartition(
-                  partitionFiles.getKey(),
-                  dataRegionRecoveryContext,
-                  partitionFiles.getValue(),
-                  fileTimeIndexMap,
-                  false);
-          if (asyncRecoverTask != null) {
-            asyncTsFileResourceRecoverTaskList.add(asyncRecoverTask);
-          }
-        }
-        if (config.isEnableSeparateData()) {
-          TimePartitionManager.getInstance()
-              .registerTimePartitionInfo(
-                  new TimePartitionInfo(
-                      new DataRegionId(Integer.parseInt(dataRegionIdString)),
-                      latestPartitionId,
-                      false,
-                      Long.MAX_VALUE,
-                      lastFlushTimeMap.getMemSize(latestPartitionId)));
-        }
-      }
-      // wait until all unsealed TsFiles have been recovered
-      for (WALRecoverListener recoverListener : recoverListeners) {
-        if (recoverListener.waitForResult() == WALRecoverListener.Status.FAILURE) {
-          logger.error(
-              "Fail to recover unsealed TsFile {}, skip it.",
-              recoverListener.getFilePath(),
-              recoverListener.getCause());
-        }
-        // update VSGRecoveryContext
-        dataRegionRecoveryContext.incrementRecoveredFilesNum();
-      }
-      // recover unsealed TsFiles, sort make sure last flush time not be replaced by early files
-      dataRegionRecoveryContext.recoverPerformers.sort(
-          (p1, p2) ->
-              compareFileName(
-                  p1.getTsFileResource().getTsFile(), p2.getTsFileResource().getTsFile()));
-      for (UnsealedTsFileRecoverPerformer recoverPerformer :
-          dataRegionRecoveryContext.recoverPerformers) {
-        recoverUnsealedTsFileCallBack(recoverPerformer);
-      }
-      for (TsFileResource resource : tsFileManager.getTsFileList(true)) {
-        long partitionNum = resource.getTimePartition();
-        updatePartitionFileVersion(partitionNum, resource.getVersion());
-      }
-      for (TsFileResource resource : tsFileManager.getTsFileList(false)) {
-        long partitionNum = resource.getTimePartition();
-        updatePartitionFileVersion(partitionNum, resource.getVersion());
-      }
-    } catch (IOException e) {
-      // signal wal recover manager to recover this region's files
-      WALRecoverManager.getInstance()
-          .getAllDataRegionScannedLatch()
-          .countDownWithException(e.getMessage());
-      throw new DataRegionException(e);
-    }
-
-    if (asyncTsFileResourceRecoverTaskList.isEmpty()) {
-      initCompactionSchedule();
-    }
-
-    if (StorageEngine.getInstance().isReadyForReadAndWrite()) {
-      if (config.getDataRegionConsensusProtocolClass().equals(ConsensusFactory.IOT_CONSENSUS_V2)) {
         IWALNode walNode =
             WALManager.getInstance()
                 .applyForWALNode(databaseName + FILE_NAME_SEPARATOR + dataRegionIdString);
