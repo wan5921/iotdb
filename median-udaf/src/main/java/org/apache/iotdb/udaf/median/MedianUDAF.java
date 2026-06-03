@@ -37,23 +37,29 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.PriorityQueue;
 
 public class MedianUDAF implements AggregateFunction {
 
   static class MedianState implements State {
 
-    List<Double> values = new ArrayList<>();
+    PriorityQueue<Double> maxHeap = new PriorityQueue<>(Collections.reverseOrder());
+    PriorityQueue<Double> minHeap = new PriorityQueue<>();
 
     @Override
     public void reset() {
-      values.clear();
+      maxHeap.clear();
+      minHeap.clear();
     }
 
     @Override
     public byte[] serialize() {
       try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
           ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-        oos.writeObject(values);
+        List<Double> maxHeapList = new ArrayList<>(maxHeap);
+        List<Double> minHeapList = new ArrayList<>(minHeap);
+        oos.writeObject(maxHeapList);
+        oos.writeObject(minHeapList);
         return bos.toByteArray();
       } catch (IOException e) {
         throw new UDFException("Failed to serialize MedianState", e);
@@ -65,10 +71,47 @@ public class MedianUDAF implements AggregateFunction {
     public void deserialize(byte[] bytes) {
       try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
           ObjectInputStream ois = new ObjectInputStream(bis)) {
-        values = (List<Double>) ois.readObject();
+        List<Double> maxHeapList = (List<Double>) ois.readObject();
+        List<Double> minHeapList = (List<Double>) ois.readObject();
+        maxHeap.clear();
+        maxHeap.addAll(maxHeapList);
+        minHeap.clear();
+        minHeap.addAll(minHeapList);
       } catch (IOException | ClassNotFoundException e) {
         throw new UDFException("Failed to deserialize MedianState", e);
       }
+    }
+
+    void add(double value) {
+      if (maxHeap.isEmpty() || value <= maxHeap.peek()) {
+        maxHeap.offer(value);
+      } else {
+        minHeap.offer(value);
+      }
+      balance();
+    }
+
+    void balance() {
+      if (maxHeap.size() > minHeap.size() + 1) {
+        minHeap.offer(maxHeap.poll());
+      } else if (minHeap.size() > maxHeap.size()) {
+        maxHeap.offer(minHeap.poll());
+      }
+    }
+
+    double getMedian() {
+      if (maxHeap.isEmpty()) {
+        return Double.NaN;
+      }
+      if (maxHeap.size() == minHeap.size()) {
+        return (maxHeap.peek() + minHeap.peek()) / 2.0;
+      } else {
+        return maxHeap.peek();
+      }
+    }
+
+    boolean isEmpty() {
+      return maxHeap.isEmpty() && minHeap.isEmpty();
     }
   }
 
@@ -86,6 +129,10 @@ public class MedianUDAF implements AggregateFunction {
           "Median only accepts INT32, INT64, FLOAT, DOUBLE as input");
     }
     return new AggregateFunctionAnalysis.Builder().outputDataType(Type.DOUBLE).build();
+  }
+
+  @Override
+  public void beforeStart(FunctionArguments arguments) throws UDFException {
   }
 
   @Override
@@ -114,7 +161,7 @@ public class MedianUDAF implements AggregateFunction {
         default:
           throw new UDFException("Median only accepts INT32, INT64, FLOAT, DOUBLE as input");
       }
-      medianState.values.add(value);
+      medianState.add(value);
     }
   }
 
@@ -122,25 +169,24 @@ public class MedianUDAF implements AggregateFunction {
   public void combineState(State state, State rhs) {
     MedianState medianState = (MedianState) state;
     MedianState medianRhs = (MedianState) rhs;
-    medianState.values.addAll(medianRhs.values);
+    List<Double> allValues = new ArrayList<>();
+    allValues.addAll(medianState.maxHeap);
+    allValues.addAll(medianState.minHeap);
+    allValues.addAll(medianRhs.maxHeap);
+    allValues.addAll(medianRhs.minHeap);
+    medianState.reset();
+    for (double v : allValues) {
+      medianState.add(v);
+    }
   }
 
   @Override
   public void outputFinal(State state, ResultValue resultValue) {
     MedianState medianState = (MedianState) state;
-    if (medianState.values.isEmpty()) {
+    if (medianState.isEmpty()) {
       resultValue.setNull();
       return;
     }
-    Collections.sort(medianState.values);
-    int size = medianState.values.size();
-    double median;
-    if (size % 2 == 0) {
-      median =
-          (medianState.values.get(size / 2 - 1) + medianState.values.get(size / 2)) / 2.0;
-    } else {
-      median = medianState.values.get(size / 2);
-    }
-    resultValue.setDouble(median);
+    resultValue.setDouble(medianState.getMedian());
   }
 }
