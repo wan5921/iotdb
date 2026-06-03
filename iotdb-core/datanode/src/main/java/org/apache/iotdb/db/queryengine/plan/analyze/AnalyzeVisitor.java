@@ -139,6 +139,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.view.ShowLogicalV
 import org.apache.iotdb.db.queryengine.plan.statement.pipe.PipeEnrichedStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainAnalyzeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
@@ -3463,6 +3464,16 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
     Analysis analysis = new Analysis();
     analysis.setRealStatement(showVersionStatement);
     analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowVersionHeader());
+    analysis.setFinishQueryAfterAnalyze(true);
+    return analysis;
+  }
+
+  @Override
+  public Analysis visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement, MPPQueryContext context) {
+    Analysis analysis = new Analysis();
+    analysis.setRealStatement(showArchiveStatusStatement);
+    analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowArchiveStatusHeader());
     analysis.setFinishQueryAfterAnalyze(true);
     return analysis;
   }

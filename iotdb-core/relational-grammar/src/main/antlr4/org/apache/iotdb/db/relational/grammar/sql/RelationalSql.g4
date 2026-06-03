@@ -145,6 +145,7 @@ statement
     | stopRepairDataStatement
     | setSystemStatusStatement
     | showVersionStatement
+    | showArchiveStatusStatement
     | showQueriesStatement
     | killQueryStatement
     | loadConfigurationStatement
@@ -678,6 +679,10 @@ setSystemStatusStatement
 
 showVersionStatement
     : SHOW VERSION
+    ;
+
+showArchiveStatusStatement
+    : SHOW ARCHIVE STATUS
     ;
 
 showQueriesStatement
@@ -1528,6 +1533,7 @@ ALTER: 'ALTER';
 ANALYZE: 'ANALYZE';
 AND: 'AND';
 ANY: 'ANY';
+ARCHIVE: 'ARCHIVE';
 ARRAY: 'ARRAY';
 AS: 'AS';
 ASC: 'ASC';

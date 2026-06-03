@@ -344,15 +344,6 @@ public class IoTDBDescriptor {
 
     conf.setQueryDir(
         FilePathUtils.regularizePath(conf.getSystemDir() + IoTDBConstant.QUERY_FOLDER_NAME));
-    String[] defaultTierDirs = new String[conf.getTierDataDirs().length];
-    for (int i = 0; i < defaultTierDirs.length; ++i) {
-      defaultTierDirs[i] = String.join(",", conf.getTierDataDirs()[i]);
-    }
-    conf.setTierDataDirs(
-        parseDataDirs(
-            properties.getProperty(
-                "dn_data_dirs", String.join(IoTDBConstant.TIER_SEPARATOR, defaultTierDirs))));
-
     conf.setConsensusDir(properties.getProperty("dn_consensus_dir", conf.getConsensusDir()));
 
     long forceMlogPeriodInMs =
@@ -1169,6 +1160,15 @@ public class IoTDBDescriptor {
       partitionTableRecoverMaxReadMBsPerSecond = conf.getPartitionTableRecoverMaxReadMBsPerSecond();
     }
     conf.setPartitionTableRecoverMaxReadMBsPerSecond(partitionTableRecoverMaxReadMBsPerSecond);
+
+    conf.setDataLifecycleDays(
+        Integer.parseInt(
+            properties.getProperty(
+                "data_lifecycle_days",
+                String.valueOf(conf.getDataLifecycleDays()))));
+
+    conf.setArchivePath(
+        properties.getProperty("archive_path", conf.getArchivePath()));
 
     conf.setIncludeNullValueInWriteThroughputMetric(
         Boolean.parseBoolean(

@@ -71,6 +71,12 @@ public class ColumnHeaderConstant {
   public static final String CHILD_NODES = "ChildNodes";
   public static final String VERSION = "Version";
   public static final String BUILD_INFO = "BuildInfo";
+  public static final String ARCHIVE_PATH = "ArchivePath";
+  public static final String LIFECYCLE_DAYS = "LifecycleDays";
+  public static final String ARCHIVED_FILE_COUNT = "ArchivedFileCount";
+  public static final String ARCHIVED_FILE_SIZE = "ArchivedFileSize";
+  public static final String LAST_ARCHIVE_TIME = "LastArchiveTime";
+  public static final String LAST_ARCHIVE_STATUS = "LastArchiveStatus";
   public static final String PATHS = "Paths";
   public static final String PATH = "Path";
   public static final String VARIABLE = "Variable";
@@ -442,6 +448,15 @@ public class ColumnHeaderConstant {
       ImmutableList.of(
           new ColumnHeader(VERSION, TSDataType.TEXT),
           new ColumnHeader(BUILD_INFO, TSDataType.TEXT));
+
+  public static final List<ColumnHeader> showArchiveStatusColumnHeaders =
+      ImmutableList.of(
+          new ColumnHeader(ARCHIVE_PATH, TSDataType.TEXT),
+          new ColumnHeader(LIFECYCLE_DAYS, TSDataType.INT32),
+          new ColumnHeader(ARCHIVED_FILE_COUNT, TSDataType.INT64),
+          new ColumnHeader(ARCHIVED_FILE_SIZE, TSDataType.INT64),
+          new ColumnHeader(LAST_ARCHIVE_TIME, TSDataType.TEXT),
+          new ColumnHeader(LAST_ARCHIVE_STATUS, TSDataType.TEXT));
 
   public static final List<ColumnHeader> showPathsUsingTemplateHeaders =
       ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));

@@ -91,12 +91,12 @@ dclStatement
     ;
 
 utilityStatement
-    : flush | clearCache | setConfiguration | settle | startRepairData | stopRepairData | explain
+    | showQueries | showDiskUsage | showCurrentTimestamp | killQuery | grantWatermarkEmbedding
     | setSystemStatus | showVersion | showFlushInfo | showLockInfo | showQueryResource
     | showQueries | showDiskUsage | showCurrentTimestamp | killQuery | grantWatermarkEmbedding
     | revokeWatermarkEmbedding | loadConfiguration | loadTimeseries | loadFile
     | removeFile | unloadFile | setSqlDialect | showCurrentSqlDialect | showCurrentUser
-    | repairDataPartitionTable
+    | repairDataPartitionTable | showArchiveStatus
     ;
 
 /**
@@ -1301,6 +1301,11 @@ showQueryResource
     : SHOW QUERY RESOURCE
     ;
 
+// Show Archive Status
+showArchiveStatus
+    : SHOW ARCHIVE STATUS
+    ;
+
 // Show Queries / Show Query Processlist
 showQueries
     : SHOW (QUERIES | QUERY PROCESSLIST)
@@ -1317,11 +1322,6 @@ showDiskUsage
     ;
 
 // Show Current Timestamp
-showCurrentTimestamp
-    : SHOW CURRENT_TIMESTAMP
-    ;
-
-// Kill Query
 killQuery
     : KILL (QUERY queryId=STRING_LITERAL | ALL QUERIES)
     ;

@@ -247,10 +247,10 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatem
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.StopRepairDataStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.TestConnectionStatement;
@@ -1035,21 +1035,10 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
     return new ShowVersionStatement();
   }
 
-  // Create Function
+  // Show archive status
   @Override
-  public Statement visitCreateFunction(CreateFunctionContext ctx) {
-    if (ctx.uriClause() == null) {
-      return new CreateFunctionStatement(
-          parseIdentifier(ctx.udfName.getText()),
-          parseStringLiteral(ctx.className.getText()),
-          Optional.empty());
-    } else {
-      String uriString = parseAndValidateURI(ctx.uriClause());
-      return new CreateFunctionStatement(
-          parseIdentifier(ctx.udfName.getText()),
-          parseStringLiteral(ctx.className.getText()),
-          Optional.of(uriString));
-    }
+  public Statement visitShowArchiveStatus(IoTDBSqlParser.ShowArchiveStatusContext ctx) {
+    return new ShowArchiveStatusStatement();
   }
 
   private String parseAndValidateURI(IoTDBSqlParser.UriClauseContext ctx) {

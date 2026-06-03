@@ -121,6 +121,7 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.relational
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.DeallocateTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.PrepareTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.SetSqlDialectTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowArchiveStatusTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentDatabaseTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentSqlDialectTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentTimestampTask;
@@ -1461,6 +1462,12 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   public IConfigTask visitShowVersion(ShowVersion node, MPPQueryContext context) {
     context.setQueryType(QueryType.READ);
     return new ShowVersionTask();
+  }
+
+  @Override
+  public IConfigTask visitShowArchiveStatus(ShowArchiveStatus node, MPPQueryContext context) {
+    context.setQueryType(QueryType.READ);
+    return new ShowArchiveStatusTask();
   }
 
   @Override

@@ -44,7 +44,7 @@ keyWords
     | AND
     | ANY
     | APPEND
-    | AS
+    | ARCHIVE
     | ASC
     | ATTRIBUTES
     | AVAILABLE
@@ -239,7 +239,6 @@ keyWords
     | STATEFUL
     | STATELESS
     | STATEMENT
-    | STOP
     | SUBSCRIPTION
     | SUBSCRIPTIONS
     | SUBSTRING

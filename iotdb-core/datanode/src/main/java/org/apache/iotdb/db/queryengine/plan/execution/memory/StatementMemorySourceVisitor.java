@@ -23,6 +23,10 @@ import org.apache.iotdb.common.rpc.thrift.TSchemaNode;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.exception.IllegalPathException;
 import org.apache.iotdb.commons.path.PartialPath;
+import org.apache.iotdb.db.conf.IoTDBConfig;
+import org.apache.iotdb.db.conf.IoTDBDescriptor;
+import org.apache.iotdb.db.storageengine.StorageEngine;
+import org.apache.iotdb.db.storageengine.dataregion.DataRegion;
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
 import org.apache.iotdb.commons.schema.column.ColumnHeader;
 import org.apache.iotdb.commons.schema.column.ColumnHeaderConstant;
@@ -42,6 +46,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowChildPathsSta
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowCurrentTimestampStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.template.ShowPathsUsingTemplateStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
 
 import org.apache.tsfile.common.conf.TSFileConfig;
@@ -191,6 +196,50 @@ public class StatementMemorySourceVisitor
 
     return new StatementMemorySource(
         getVersionResult(), context.getAnalysis().getRespDatasetHeader());
+  }
+
+  @Override
+  public StatementMemorySource visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement, StatementMemorySourceContext context) {
+
+    return new StatementMemorySource(
+        getArchiveStatusResult(), context.getAnalysis().getRespDatasetHeader());
+  }
+
+  public static TsBlock getArchiveStatusResult() {
+    List<TSDataType> outputDataTypes =
+        ColumnHeaderConstant.showArchiveStatusColumnHeaders.stream()
+            .map(ColumnHeader::getColumnType)
+            .collect(Collectors.toList());
+    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
+
+    IoTDBConfig config = IoTDBDescriptor.getInstance().getConfig();
+    List<DataRegion> dataRegions = StorageEngine.getInstance().getAllDataRegions();
+
+    for (DataRegion region : dataRegions) {
+      tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
+      tsBlockBuilder
+          .getColumnBuilder(0)
+          .writeBinary(new Binary(config.getArchivePath(), TSFileConfig.STRING_CHARSET));
+      tsBlockBuilder.getColumnBuilder(1).writeInt(config.getDataLifecycleDays());
+      tsBlockBuilder.getColumnBuilder(2).writeLong(region.getArchivedFileCount());
+      tsBlockBuilder.getColumnBuilder(3).writeLong(region.getArchivedFileSize());
+      tsBlockBuilder
+          .getColumnBuilder(4)
+          .writeBinary(
+              new Binary(
+                  region.getLastArchiveTime() > 0
+                      ? new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                          .format(region.getLastArchiveTime())
+                      : "N/A",
+                  TSFileConfig.STRING_CHARSET));
+      tsBlockBuilder
+          .getColumnBuilder(5)
+          .writeBinary(new Binary(region.getLastArchiveStatus(), TSFileConfig.STRING_CHARSET));
+      tsBlockBuilder.declarePosition();
+    }
+
+    return tsBlockBuilder.build();
   }
 
   public static TsBlock getVersionResult() {

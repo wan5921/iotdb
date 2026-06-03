@@ -81,6 +81,10 @@ public class DatasetHeaderFactory {
     return new DatasetHeader(ColumnHeaderConstant.showVersionColumnHeaders, true);
   }
 
+  public static DatasetHeader getShowArchiveStatusHeader() {
+    return new DatasetHeader(ColumnHeaderConstant.showArchiveStatusColumnHeaders, true);
+  }
+
   public static DatasetHeader getLastQueryHeader() {
     return new DatasetHeader(ColumnHeaderConstant.lastQueryColumnHeaders, false);
   }

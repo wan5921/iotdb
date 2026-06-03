@@ -97,8 +97,8 @@ APPEND
     : A P P E N D
     ;
 
-AS
-    : A S
+ARCHIVE
+    : A R C H I V E
     ;
 
 ASC
@@ -885,10 +885,6 @@ STATELESS
 
 STATEMENT
     : S T A T E M E N T
-    ;
-
-STOP
-    : S T O P
     ;
 
 STORAGE_PROPERTIES

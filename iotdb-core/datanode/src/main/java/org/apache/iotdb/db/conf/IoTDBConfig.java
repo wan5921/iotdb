@@ -253,12 +253,6 @@ public class IoTDBConfig {
   private String queryDir =
       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.QUERY_FOLDER_NAME;
 
-  /** External lib directory, stores user-uploaded JAR files */
-  private String extDir = IoTDBConstant.EXT_FOLDER_NAME;
-
-  /** External lib directory for UDF, stores user-uploaded JAR files */
-  private String udfDir =
-      IoTDBConstant.EXT_FOLDER_NAME + File.separator + IoTDBConstant.UDF_FOLDER_NAME;
 
   /** External temporary lib directory for storing downloaded udf JAR files */
   private String udfTemporaryLibDir = udfDir + File.separator + IoTDBConstant.TMP_FOLDER_NAME;
@@ -1232,6 +1226,12 @@ public class IoTDBConfig {
   // Rate limit set to 10 MB/s
   private int partitionTableRecoverMaxReadMBsPerSecond = 10;
 
+  /** Data lifecycle related: number of days to keep data before archiving. -1 means disabled. */
+  private int dataLifecycleDays = -1;
+
+  /** Data lifecycle related: path where archived TsFiles are moved to. */
+  private String archivePath = "";
+
   IoTDBConfig() {}
 
   public int getMaxLogEntriesNumPerBatch() {
@@ -1676,22 +1676,6 @@ public class IoTDBConfig {
 
   public void setQueryDir(String queryDir) {
     this.queryDir = queryDir;
-  }
-
-  public String getRatisDataRegionSnapshotDir() {
-    return ratisDataRegionSnapshotDir;
-  }
-
-  public void setRatisDataRegionSnapshotDir(String ratisDataRegionSnapshotDir) {
-    this.ratisDataRegionSnapshotDir = ratisDataRegionSnapshotDir;
-  }
-
-  public String getConsensusDir() {
-    return consensusDir;
-  }
-
-  public void setConsensusDir(String consensusDir) {
-    this.consensusDir = consensusDir;
     setDataRegionConsensusDir(
         consensusDir + File.separator + IoTDBConstant.DATA_REGION_FOLDER_NAME);
     setSchemaRegionConsensusDir(
@@ -4469,5 +4453,21 @@ public class IoTDBConfig {
   public void setPartitionTableRecoverMaxReadMBsPerSecond(
       int partitionTableRecoverMaxReadMBsPerSecond) {
     this.partitionTableRecoverMaxReadMBsPerSecond = partitionTableRecoverMaxReadMBsPerSecond;
+  }
+
+  public int getDataLifecycleDays() {
+    return dataLifecycleDays;
+  }
+
+  public void setDataLifecycleDays(int dataLifecycleDays) {
+    this.dataLifecycleDays = dataLifecycleDays;
+  }
+
+  public String getArchivePath() {
+    return archivePath;
+  }
+
+  public void setArchivePath(String archivePath) {
+    this.archivePath = archivePath;
   }
 }

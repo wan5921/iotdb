@@ -218,6 +218,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -285,17 +286,6 @@ public class DataRegion implements IDataRegionForQuery {
   private volatile boolean deleted = false;
 
   /** closeStorageGroupCondition is used to wait for all currently closing TsFiles to be done. */
-  private final Object closeStorageGroupCondition = new Object();
-
-  /** time partition id in the database -> {@link TsFileProcessor} for this time partition. */
-  private final TreeMap<Long, TsFileProcessor> workSequenceTsFileProcessors = new TreeMap<>();
-
-  /** time partition id in the database -> {@link TsFileProcessor} for this time partition. */
-  private final TreeMap<Long, TsFileProcessor> workUnsequenceTsFileProcessors = new TreeMap<>();
-
-  /** sequence {@link TsFileProcessor}s which are closing. */
-  private final Set<TsFileProcessor> closingSequenceTsFileProcessor = ConcurrentHashMap.newKeySet();
-
   /** unsequence {@link TsFileProcessor}s which are closing. */
   private final Set<TsFileProcessor> closingUnSequenceTsFileProcessor =
       ConcurrentHashMap.newKeySet();
@@ -375,6 +365,13 @@ public class DataRegion implements IDataRegionForQuery {
   private static final PerformanceOverviewMetrics PERFORMANCE_OVERVIEW_METRICS =
       PerformanceOverviewMetrics.getInstance();
   private final ExecutorService upgradeModFileThreadPool;
+
+  private ScheduledExecutorService archiveCheckThread;
+
+  private volatile long archivedFileCount = 0;
+  private volatile long archivedFileSize = 0;
+  private volatile long lastArchiveTime = 0;
+  private volatile String lastArchiveStatus = "NOT_STARTED";
 
   private final DataRegionMetrics metrics;
 
@@ -470,6 +467,10 @@ public class DataRegion implements IDataRegionForQuery {
 
     this.metrics = new DataRegionMetrics(this);
     MetricService.getInstance().addMetricSet(metrics);
+
+    if (config.getDataLifecycleDays() > 0 && !config.getArchivePath().isEmpty()) {
+      initArchiveCheckThread();
+    }
   }
 
   @TestOnly
@@ -480,8 +481,6 @@ public class DataRegion implements IDataRegionForQuery {
     this.dataRegionId = new DataRegionId(Integer.parseInt(this.dataRegionIdString));
     this.tsFileManager = new TsFileManager(databaseName, dataRegionIdString, "");
     this.partitionMaxFileVersions = new HashMap<>();
-    partitionMaxFileVersions.put(0L, 0L);
-    upgradeModFileThreadPool = null;
     this.metrics = new DataRegionMetrics(this);
     this.delayAnalyzer =
         config.isEnableDelayAnalyzer()
@@ -5021,7 +5020,6 @@ public class DataRegion implements IDataRegionForQuery {
     return getTimePartitions().stream().max(Long::compareTo).orElse(0L);
   }
 
-  public String getInsertWriteLockHolder() {
     return insertWriteLockHolder;
   }
 
@@ -5068,89 +5066,125 @@ public class DataRegion implements IDataRegionForQuery {
     }
   }
 
-  private void acquireDirectBufferMemory() throws DataRegionException {
-    long acquireDirectBufferMemCost = getAcquireDirectBufferMemCost();
-    if (!SystemInfo.getInstance().addDirectBufferMemoryCost(acquireDirectBufferMemCost)) {
-      throw new DataRegionException(
-          "Total allocated memory for direct buffer will be "
-              + (SystemInfo.getInstance().getDirectBufferMemoryCost() + acquireDirectBufferMemCost)
-              + ", which is greater than limit mem cost: "
-              + SystemInfo.getInstance().getTotalDirectBufferMemorySizeLimit());
-    }
-    this.directBufferMemoryCost = acquireDirectBufferMemCost;
+  private void initArchiveCheckThread() {
+    archiveCheckThread =
+        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
+            databaseName + "-" + dataRegionIdString + "-ArchiveCheck");
+    archiveCheckThread.scheduleAtFixedRate(
+        this::checkAndArchiveExpiredFiles, 1, 1, TimeUnit.DAYS);
+    logger.info(
+        "Archive check thread started for {}-{}, lifecycle days: {}, archive path: {}",
+        databaseName,
+        dataRegionIdString,
+        config.getDataLifecycleDays(),
+        config.getArchivePath());
   }
 
-  public static long getAcquireDirectBufferMemCost() {
-    long acquireDirectBufferMemCost = 0;
-    if (config.getDataRegionConsensusProtocolClass().equals(ConsensusFactory.IOT_CONSENSUS)
-        || config.getDataRegionConsensusProtocolClass().equals(ConsensusFactory.IOT_CONSENSUS_V2)) {
-      acquireDirectBufferMemCost =
-          config.getWalMode().equals(WALMode.DISABLE) ? 0 : config.getWalBufferSize();
-    } else if (config
-        .getDataRegionConsensusProtocolClass()
-        .equals(ConsensusFactory.RATIS_CONSENSUS)) {
-      acquireDirectBufferMemCost = config.getDataRatisConsensusLogAppenderBufferSizeMax();
-    }
-    if (config.getDataRegionConsensusProtocolClass().equals(ConsensusFactory.IOT_CONSENSUS_V2)) {
-      acquireDirectBufferMemCost += PageCacheDeletionBuffer.DAL_BUFFER_SIZE;
-    }
-    return acquireDirectBufferMemCost;
-  }
-
-  private void releaseDirectBufferMemory() {
-    SystemInfo.getInstance().decreaseDirectBufferMemoryCost(directBufferMemoryCost);
-    // avoid repeated deletion
-    this.directBufferMemoryCost = 0;
-  }
-
-  /* Be careful, the thread that calls this method may not hold the write lock!!*/
-  public void degradeFlushTimeMap(long timePartitionId) {
-    lastFlushTimeMap.degradeLastFlushTime(timePartitionId);
-  }
-
-  public long getMemCost() {
-    return dataRegionInfo.getMemCost();
-  }
-
-  private void renameAndHandleError(String originFileName, String newFileName) {
+  private void checkAndArchiveExpiredFiles() {
     try {
-      File originFile = new File(originFileName);
-      if (originFile.exists()) {
-        Files.move(originFile.toPath(), Paths.get(newFileName));
+      lastArchiveStatus = "RUNNING";
+      long currentTime = System.currentTimeMillis();
+      long expireTimeThreshold =
+          currentTime - (long) config.getDataLifecycleDays() * 24 * 60 * 60 * 1000;
+      File archiveDir = new File(config.getArchivePath());
+      if (!archiveDir.exists()) {
+        archiveDir.mkdirs();
       }
-    } catch (IOException e) {
-      logger.error(StorageEngineMessages.FAILED_TO_RENAME, originFileName, newFileName, e);
+
+      long count = 0;
+      long size = 0;
+      List<TsFileResource> seqFiles = tsFileManager.getTsFileList(true);
+      for (TsFileResource resource : seqFiles) {
+        if (resource.isClosed() && resource.getEndTime() < expireTimeThreshold) {
+          archiveTsFile(resource, archiveDir);
+          count++;
+          size += resource.getTsFileSize();
+        }
+      }
+
+      archivedFileCount = count;
+      archivedFileSize = size;
+      lastArchiveTime = System.currentTimeMillis();
+      lastArchiveStatus = count > 0 ? "COMPLETED" : "NO_EXPIRED_FILES";
+      logger.info(
+          "Archive check completed for {}-{}, archived {} files, total size: {} bytes",
+          databaseName,
+          dataRegionIdString,
+          count,
+          size);
+    } catch (Exception e) {
+      lastArchiveStatus = "FAILED: " + e.getMessage();
+      logger.error(
+          "Error during archive check for {}-{}", databaseName, dataRegionIdString, e);
     }
   }
 
-  public void compactFileTimeIndexCache() {
-    tsFileManager.compactFileTimeIndexCache();
-  }
-
-  @TestOnly
-  public ILastFlushTimeMap getLastFlushTimeMap() {
-    return lastFlushTimeMap;
-  }
-
-  public TsFileManager getTsFileManager() {
-    return tsFileManager;
-  }
-
-  /**
-   * Get the delay analyzer instance for this data region
-   *
-   * @return DelayAnalyzer instance for tracking data arrival delays and calculating safe
-   *     watermarks, or null if delay analyzer is disabled
-   */
-  public DelayAnalyzer getDelayAnalyzer() {
-    return delayAnalyzer;
-  }
-
-  private long getTTL(InsertNode insertNode) {
-    if (insertNode.getTableName() == null) {
-      return DataNodeTTLCache.getInstance().getTTLForTree(insertNode.getTargetPath().getNodes());
-    } else {
-      return DataNodeTTLCache.getInstance().getTTLForTable(databaseName, insertNode.getTableName());
+  private void archiveTsFile(TsFileResource resource, File archiveDir) throws IOException {
+    File tsFile = resource.getTsFile();
+    File archiveTsFile = new File(archiveDir, tsFile.getName());
+    if (archiveTsFile.exists()) {
+      logger.warn("Archive file already exists: {}", archiveTsFile.getAbsolutePath());
+      return;
     }
+
+    writeLock("archiveTsFile");
+    try {
+      if (tsFileManager.contains(resource, true)) {
+        tsFileManager.remove(resource, true);
+      }
+      FileUtils.moveFile(tsFile, archiveTsFile);
+
+      File resourceFile = new File(tsFile.getAbsolutePath() + RESOURCE_SUFFIX);
+      if (resourceFile.exists()) {
+        FileUtils.moveFile(resourceFile, new File(archiveDir, tsFile.getName() + RESOURCE_SUFFIX));
+      }
+
+      File modFile = ModificationFile.getExclusiveMods(tsFile);
+      if (modFile.exists()) {
+        FileUtils.moveFile(modFile, new File(archiveDir, tsFile.getName() + ".mods"));
+      }
+
+      FileMetrics.getInstance()
+          .deleteTsFile(
+              resource.getDatabaseName(),
+              resource.getDataRegionId(),
+              resource.getTsFileSize(),
+              resource.isSeq(),
+              resource.getTsFile().getName());
+
+      logger.info(
+          "Archived TsFile {} to {}", tsFile.getAbsolutePath(), archiveTsFile.getAbsolutePath());
+    } finally {
+      writeUnlock();
+    }
+  }
+
+  public void shutdownArchiveThread() {
+    if (archiveCheckThread != null) {
+      archiveCheckThread.shutdownNow();
+      try {
+        archiveCheckThread.awaitTermination(5, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        logger.warn("Archive check thread shutdown interrupted");
+      }
+    }
+  }
+
+  public long getArchivedFileCount() {
+    return archivedFileCount;
+  }
+
+  public long getArchivedFileSize() {
+    return archivedFileSize;
+  }
+
+  public long getLastArchiveTime() {
+    return lastArchiveTime;
+  }
+
+  public String getLastArchiveStatus() {
+    return lastArchiveStatus;
   }
 }
+
