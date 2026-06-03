@@ -97,6 +97,10 @@ APPEND
     : A P P E N D
     ;
 
+ARCHIVE
+    : A R C H I V E
+    ;
+
 AS
     : A S
     ;
@@ -865,6 +869,10 @@ START
 
 STARTTIME
     : S T A R T T I M E
+    ;
+
+STATUS
+    : S T A T U S
     ;
 
 STATEFUL

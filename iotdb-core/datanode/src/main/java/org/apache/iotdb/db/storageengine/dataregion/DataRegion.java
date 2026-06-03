@@ -26,6 +26,7 @@ import org.apache.iotdb.common.rpc.thrift.TSStatus;
 import org.apache.iotdb.commons.client.exception.ClientManagerException;
 import org.apache.iotdb.commons.cluster.NodeStatus;
 import org.apache.iotdb.commons.concurrent.IoTDBThreadPoolFactory;
+import org.apache.iotdb.commons.concurrent.threadpool.ScheduledExecutorUtil;
 import org.apache.iotdb.commons.conf.CommonDescriptor;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.consensus.DataRegionId;
@@ -218,6 +219,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -366,13 +368,6 @@ public class DataRegion implements IDataRegionForQuery {
 
   private final AtomicBoolean isCompactionSelecting = new AtomicBoolean(false);
 
-  private static final QueryResourceMetricSet QUERY_RESOURCE_METRIC_SET =
-      QueryResourceMetricSet.getInstance();
-
-  private static final PerformanceOverviewMetrics PERFORMANCE_OVERVIEW_METRICS =
-      PerformanceOverviewMetrics.getInstance();
-  private final ExecutorService upgradeModFileThreadPool;
-
   private final DataRegionMetrics metrics;
 
   private ILoadDiskSelector ordinaryLoadDiskSelector;
@@ -382,6 +377,16 @@ public class DataRegion implements IDataRegionForQuery {
 
   /** Delay analyzer for tracking data arrival delays and calculating safe watermarks */
   private final DelayAnalyzer delayAnalyzer;
+
+  private final AtomicBoolean archiveInProgress = new AtomicBoolean(false);
+  private final AtomicLong archivedTsFileCount = new AtomicLong(0);
+  private final AtomicLong archivedTsFileSize = new AtomicLong(0);
+  private final AtomicLong lastArchiveScanTime = new AtomicLong(0);
+  private final AtomicLong lastArchiveTime = new AtomicLong(0);
+
+  private volatile String lastArchiveError;
+
+  private ScheduledExecutorService archiveExecutorService;
 
   /**
    * Construct a database processor.
@@ -462,15 +467,12 @@ public class DataRegion implements IDataRegionForQuery {
     }
 
     initDiskSelector();
+    initArchiveExecutor();
 
     this.metrics = new DataRegionMetrics(this);
     MetricService.getInstance().addMetricSet(metrics);
   }
 
-  @TestOnly
-  public DataRegion(String databaseName, String dataRegionIdString) {
-    this.databaseName = databaseName;
-    this.isTableModel = isTableModelDatabase(databaseName);
     this.dataRegionIdString = dataRegionIdString;
     this.dataRegionId = new DataRegionId(Integer.parseInt(this.dataRegionIdString));
     this.tsFileManager = new TsFileManager(databaseName, dataRegionIdString, "");
@@ -515,6 +517,267 @@ public class DataRegion implements IDataRegionForQuery {
     pipeAndIoTV2LoadDiskSelector =
         ILoadDiskSelector.initDiskSelector(
             config.getLoadDiskSelectStrategyForIoTV2AndPipe(), dirs, selector);
+  }
+
+  private static final class ArchiveCandidate {
+    private final TsFileResource resource;
+    private final boolean sequence;
+    private final long tsFileSize;
+
+    private ArchiveCandidate(TsFileResource resource, boolean sequence, long tsFileSize) {
+      this.resource = resource;
+      this.sequence = sequence;
+      this.tsFileSize = tsFileSize;
+    }
+  }
+
+  private static final class ArchivePendingSummary {
+    private static final ArchivePendingSummary EMPTY = new ArchivePendingSummary(0, 0);
+
+    private final long pendingTsFileCount;
+    private final long pendingTsFileSize;
+
+    private ArchivePendingSummary(long pendingTsFileCount, long pendingTsFileSize) {
+      this.pendingTsFileCount = pendingTsFileCount;
+      this.pendingTsFileSize = pendingTsFileSize;
+    }
+  }
+
+  public static final class ArchiveStatusSnapshot {
+    private final String database;
+    private final String dataRegionId;
+    private final int lifecycleDays;
+    private final String archivePath;
+    private final String status;
+    private final long pendingTsFileCount;
+    private final long pendingTsFileSize;
+    private final long archivedTsFileCount;
+    private final long archivedTsFileSize;
+    private final long lastScanTime;
+    private final long lastArchiveTime;
+    private final String lastError;
+
+    private ArchiveStatusSnapshot(
+        String database,
+        String dataRegionId,
+        int lifecycleDays,
+        String archivePath,
+        String status,
+        long pendingTsFileCount,
+        long pendingTsFileSize,
+        long archivedTsFileCount,
+        long archivedTsFileSize,
+        long lastScanTime,
+        long lastArchiveTime,
+        String lastError) {
+      this.database = database;
+      this.dataRegionId = dataRegionId;
+      this.lifecycleDays = lifecycleDays;
+      this.archivePath = archivePath;
+      this.status = status;
+      this.pendingTsFileCount = pendingTsFileCount;
+      this.pendingTsFileSize = pendingTsFileSize;
+      this.archivedTsFileCount = archivedTsFileCount;
+      this.archivedTsFileSize = archivedTsFileSize;
+      this.lastScanTime = lastScanTime;
+      this.lastArchiveTime = lastArchiveTime;
+      this.lastError = lastError;
+    }
+
+    public String getDatabase() {
+      return database;
+    }
+
+    public String getDataRegionId() {
+      return dataRegionId;
+    }
+
+    public int getLifecycleDays() {
+      return lifecycleDays;
+    }
+
+    public String getArchivePath() {
+      return archivePath;
+    }
+
+    public String getStatus() {
+      return status;
+    }
+
+    public long getPendingTsFileCount() {
+      return pendingTsFileCount;
+    }
+
+    public long getPendingTsFileSize() {
+      return pendingTsFileSize;
+    }
+
+    public long getArchivedTsFileCount() {
+      return archivedTsFileCount;
+    }
+
+    public long getArchivedTsFileSize() {
+      return archivedTsFileSize;
+    }
+
+    public long getLastScanTime() {
+      return lastScanTime;
+    }
+
+    public long getLastArchiveTime() {
+      return lastArchiveTime;
+    }
+
+    public String getLastError() {
+      return lastError;
+    }
+  }
+
+  private void initArchiveExecutor() {
+    if (!isArchiveEnabled()) {
+      return;
+    }
+    archiveExecutorService =
+        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
+            databaseName + "-" + dataRegionIdString + "-Archive");
+    ScheduledExecutorUtil.safelyScheduleAtFixedRate(
+        archiveExecutorService,
+        this::scanAndArchiveExpiredTsFiles,
+        0,
+        1,
+        TimeUnit.DAYS);
+  }
+
+  private boolean isArchiveEnabled() {
+    return config.getDataLifecycleDays() > 0
+        && config.getArchivePath() != null
+        && !config.getArchivePath().isEmpty();
+  }
+
+  private void scanAndArchiveExpiredTsFiles() {
+    lastArchiveScanTime.set(System.currentTimeMillis());
+    if (!isArchiveEnabled() || deleted || !archiveInProgress.compareAndSet(false, true)) {
+      return;
+    }
+    long currentTime = System.currentTimeMillis();
+    try {
+      for (ArchiveCandidate candidate : collectArchiveCandidates(currentTime)) {
+        archiveTsFile(candidate);
+      }
+      lastArchiveError = null;
+    } catch (Exception e) {
+      lastArchiveError = e.getMessage();
+      logger.warn(
+          "Failed to archive expired TsFiles for data region {}[{}]",
+          databaseName,
+          dataRegionIdString,
+          e);
+    } finally {
+      archiveInProgress.set(false);
+    }
+  }
+
+  private List<ArchiveCandidate> collectArchiveCandidates(long currentTime) {
+    List<ArchiveCandidate> candidates = new ArrayList<>();
+    long archiveThreshold = currentTime - TimeUnit.DAYS.toMillis(config.getDataLifecycleDays());
+    appendArchiveCandidates(candidates, tsFileManager.getTsFileList(true), true, archiveThreshold);
+    appendArchiveCandidates(
+        candidates, tsFileManager.getTsFileList(false), false, archiveThreshold);
+    return candidates;
+  }
+
+  private void appendArchiveCandidates(
+      List<ArchiveCandidate> candidates,
+      List<TsFileResource> tsFileResources,
+      boolean sequence,
+      long archiveThreshold) {
+    for (TsFileResource tsFileResource : tsFileResources) {
+      if (tsFileResource.isDeleted()
+          || tsFileResource.getStatus() != TsFileResourceStatus.NORMAL
+          || tsFileResource.getFileEndTime() == Long.MIN_VALUE
+          || tsFileResource.getFileEndTime() >= archiveThreshold) {
+        continue;
+      }
+      final File tsFile = tsFileResource.getTsFile();
+      if (!tsFile.exists()) {
+        continue;
+      }
+      candidates.add(new ArchiveCandidate(tsFileResource, sequence, tsFile.length()));
+    }
+  }
+
+  private void archiveTsFile(ArchiveCandidate archiveCandidate) throws IOException {
+    final File sourceTsFile = archiveCandidate.resource.getTsFile();
+    final File targetDir =
+        new File(
+            config.getArchivePath(),
+            databaseName
+                + File.separator
+                + dataRegionIdString
+                + File.separator
+                + (archiveCandidate.sequence
+                    ? IoTDBConstant.SEQUENCE_FOLDER_NAME
+                    : IoTDBConstant.UNSEQUENCE_FOLDER_NAME)
+                + File.separator
+                + archiveCandidate.resource.getTimePartition());
+    if (!targetDir.exists() && !targetDir.mkdirs() && !targetDir.exists()) {
+      throw new IOException("Failed to create archive directory " + targetDir.getAbsolutePath());
+    }
+    final File targetTsFile = new File(targetDir, sourceTsFile.getName());
+    if (unloadTsfile(sourceTsFile, targetDir)) {
+      final File normalModFile = ModificationFileV1.getNormalMods(sourceTsFile);
+      if (normalModFile.exists()) {
+        FileUtils.moveFile(normalModFile, ModificationFileV1.getNormalMods(targetTsFile));
+      }
+      archivedTsFileCount.incrementAndGet();
+      archivedTsFileSize.addAndGet(archiveCandidate.tsFileSize);
+      lastArchiveTime.set(System.currentTimeMillis());
+      logger.info(
+          "Archived expired TsFile {} to {} in data region {}[{}]",
+          sourceTsFile.getAbsolutePath(),
+          targetTsFile.getAbsolutePath(),
+          databaseName,
+          dataRegionIdString);
+    }
+  }
+
+  public ArchiveStatusSnapshot getArchiveStatusSnapshot() {
+    ArchivePendingSummary pendingSummary =
+        isArchiveEnabled()
+            ? buildArchivePendingSummary(collectArchiveCandidates(System.currentTimeMillis()))
+            : ArchivePendingSummary.EMPTY;
+    return new ArchiveStatusSnapshot(
+        databaseName,
+        dataRegionIdString,
+        config.getDataLifecycleDays(),
+        config.getArchivePath(),
+        isArchiveEnabled()
+            ? (archiveInProgress.get() ? "RUNNING" : "IDLE")
+            : "DISABLED",
+        pendingSummary.pendingTsFileCount,
+        pendingSummary.pendingTsFileSize,
+        archivedTsFileCount.get(),
+        archivedTsFileSize.get(),
+        lastArchiveScanTime.get(),
+        lastArchiveTime.get(),
+        lastArchiveError);
+  }
+
+  private ArchivePendingSummary buildArchivePendingSummary(List<ArchiveCandidate> candidates) {
+    long pendingTsFileCount = 0;
+    long pendingTsFileSize = 0;
+    for (ArchiveCandidate candidate : candidates) {
+      pendingTsFileCount++;
+      pendingTsFileSize += candidate.tsFileSize;
+    }
+    return new ArchivePendingSummary(pendingTsFileCount, pendingTsFileSize);
+  }
+
+  private void stopArchiveExecutor() {
+    if (archiveExecutorService != null) {
+      archiveExecutorService.shutdownNow();
+      archiveExecutorService = null;
+    }
   }
 
   @Override
@@ -5041,6 +5304,7 @@ public class DataRegion implements IDataRegionForQuery {
     writeLock("markDeleted");
     try {
       deleted = true;
+      stopArchiveExecutor();
       releaseDirectBufferMemory();
       MetricService.getInstance().removeMetricSet(metrics);
       deletedCondition.signalAll();

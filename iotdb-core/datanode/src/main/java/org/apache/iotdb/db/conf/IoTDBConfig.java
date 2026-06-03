@@ -253,6 +253,10 @@ public class IoTDBConfig {
   private String queryDir =
       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.QUERY_FOLDER_NAME;
 
+  private int dataLifecycleDays = 0;
+
+  private String archivePath = "";
+
   /** External lib directory, stores user-uploaded JAR files */
   private String extDir = IoTDBConstant.EXT_FOLDER_NAME;
 
@@ -1670,6 +1674,22 @@ public class IoTDBConfig {
 
   public void setQueryDir(String queryDir) {
     this.queryDir = queryDir;
+  }
+
+  public int getDataLifecycleDays() {
+    return dataLifecycleDays;
+  }
+
+  public void setDataLifecycleDays(int dataLifecycleDays) {
+    this.dataLifecycleDays = Math.max(dataLifecycleDays, 0);
+  }
+
+  public String getArchivePath() {
+    return archivePath;
+  }
+
+  public void setArchivePath(String archivePath) {
+    this.archivePath = archivePath;
   }
 
   public String getRatisDataRegionSnapshotDir() {

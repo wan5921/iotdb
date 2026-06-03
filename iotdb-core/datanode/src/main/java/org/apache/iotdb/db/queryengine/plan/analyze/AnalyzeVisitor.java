@@ -139,7 +139,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.view.ShowLogicalV
 import org.apache.iotdb.db.queryengine.plan.statement.pipe.PipeEnrichedStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainAnalyzeStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
 import org.apache.iotdb.rpc.RpcUtils;
@@ -3464,16 +3463,6 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
     analysis.setRealStatement(showVersionStatement);
     analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowVersionHeader());
     analysis.setFinishQueryAfterAnalyze(true);
-    return analysis;
-  }
-
-
-    if (schemaNodeManagementPartition == null) {
-      return analysis;
-    }
-    if (!schemaNodeManagementPartition.getMatchedNode().isEmpty()
-        && schemaNodeManagementPartition.getSchemaPartition().getSchemaPartitionMap().isEmpty()) {
-      analysis.setFinishQueryAfterAnalyze(true);
     }
     analysis.setMatchedNodes(schemaNodeManagementPartition.getMatchedNode());
     analysis.setSchemaPartitionInfo(schemaNodeManagementPartition.getSchemaPartition());

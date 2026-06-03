@@ -23,10 +23,6 @@ import org.apache.iotdb.common.rpc.thrift.TSchemaNode;
 import org.apache.iotdb.commons.conf.IoTDBConstant;
 import org.apache.iotdb.commons.exception.IllegalPathException;
 import org.apache.iotdb.commons.path.PartialPath;
-import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
-import org.apache.iotdb.commons.schema.column.ColumnHeader;
-import org.apache.iotdb.commons.schema.column.ColumnHeaderConstant;
-import org.apache.iotdb.commons.schema.node.MNodeType;
 import org.apache.iotdb.db.queryengine.common.header.DatasetHeader;
 import org.apache.iotdb.db.queryengine.plan.planner.LogicalPlanner;
 import org.apache.iotdb.db.queryengine.plan.planner.distribution.DistributionPlanner;
@@ -46,7 +42,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
 import org.apache.tsfile.read.common.block.TsBlockBuilder;
 import org.apache.tsfile.utils.Binary;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -196,50 +191,6 @@ public class StatementMemorySourceVisitor
     TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
     tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
     tsBlockBuilder.getColumnBuilder(0).writeLong(0);
-    tsBlockBuilder.declarePosition();
-    return new StatementMemorySource(
-        tsBlockBuilder.build(), context.getAnalysis().getRespDatasetHeader());
-  }
-
-  @Override
-  public StatementMemorySource visitCountTimeSeries(
-      CountTimeSeriesStatement countStatement, StatementMemorySourceContext context) {
-    List<TSDataType> outputDataTypes =
-        ColumnHeaderConstant.countTimeSeriesColumnHeaders.stream()
-            .map(ColumnHeader::getColumnType)
-            .collect(Collectors.toList());
-    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
-    tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
-    tsBlockBuilder.getColumnBuilder(0).writeLong(0);
-    tsBlockBuilder.declarePosition();
-    return new StatementMemorySource(
-        tsBlockBuilder.build(), context.getAnalysis().getRespDatasetHeader());
-  }
-
-  @Override
-  public StatementMemorySource visitShowPathsUsingTemplate(
-      ShowPathsUsingTemplateStatement showPathsUsingTemplateStatement,
-      StatementMemorySourceContext context) {
-    List<TSDataType> outputDataTypes =
-        ColumnHeaderConstant.showPathsUsingTemplateHeaders.stream()
-            .map(ColumnHeader::getColumnType)
-            .collect(Collectors.toList());
-    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
-    return new StatementMemorySource(
-        tsBlockBuilder.build(), context.getAnalysis().getRespDatasetHeader());
-  }
-
-  @Override
-  public StatementMemorySource visitShowCurrentTimestamp(
-      ShowCurrentTimestampStatement showCurrentTimestampStatement,
-      StatementMemorySourceContext context) {
-
-    return new StatementMemorySource(
-        getCurrentTimestampResult(), context.getAnalysis().getRespDatasetHeader());
-  }
-
-  public static TsBlock getCurrentTimestampResult() {
-    List<TSDataType> outputDataTypes =
         ColumnHeaderConstant.SHOW_CURRENT_TIMESTAMP_COLUMN_HEADERS.stream()
             .map(ColumnHeader::getColumnType)
             .collect(Collectors.toList());

@@ -243,7 +243,6 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.template.S
 import org.apache.iotdb.db.queryengine.plan.execution.config.metadata.template.ShowSchemaTemplateTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentDatabaseTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentSqlDialectTask;
-import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentTimestampTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentUserTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowVersionTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.ShowConfigurationTask;
@@ -1637,13 +1636,6 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
   public SettableFuture<ConfigTaskResult> showVersion() {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     ShowVersionTask.buildTsBlock(future);
-    return future;
-  }
-
-  @Override
-  public SettableFuture<ConfigTaskResult> showCurrentSqlDialect(final String sqlDialect) {
-    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
-    ShowCurrentSqlDialectTask.buildTsBlock(sqlDialect, future);
     return future;
   }
 

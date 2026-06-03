@@ -244,7 +244,6 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowRegions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowStatement;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowSubscriptions;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTables;
-import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowTopics;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowVariables;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowVersion;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.StartPipe;
@@ -1655,12 +1654,6 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
   @Override
   public Node visitShowVersionStatement(RelationalSqlParser.ShowVersionStatementContext ctx) {
     return new ShowVersion(getLocation(ctx));
-  }
-
-  @Override
-  public Node visitShowCurrentSqlDialectStatement(
-      RelationalSqlParser.ShowCurrentSqlDialectStatementContext ctx) {
-    return new ShowCurrentSqlDialect(getLocation(ctx));
   }
 
   @Override

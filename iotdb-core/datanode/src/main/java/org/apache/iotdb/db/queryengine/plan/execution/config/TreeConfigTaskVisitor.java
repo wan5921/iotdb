@@ -101,6 +101,7 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.session.SetSqlDiale
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentSqlDialectTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentUserTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.AuthorizerTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.sys.ShowArchiveStatusTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.ClearCacheTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.FlushTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.KillQueryTask;
@@ -219,6 +220,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.RepairDataPartitionTab
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowConfigurationStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
@@ -959,6 +961,12 @@ public class TreeConfigTaskVisitor extends StatementVisitor<IConfigTask, MPPQuer
   @Override
   public IConfigTask visitShowCurrentUser(ShowCurrentUserStatement node, MPPQueryContext context) {
     return new ShowCurrentUserTask(context.getSession().getUserName());
+  }
+
+  @Override
+  public IConfigTask visitShowArchiveStatus(
+      ShowArchiveStatusStatement node, MPPQueryContext context) {
+    return new ShowArchiveStatusTask();
   }
 
   @Override

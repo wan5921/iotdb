@@ -71,12 +71,6 @@ public class ColumnHeaderConstant {
   public static final String CHILD_NODES = "ChildNodes";
   public static final String VERSION = "Version";
   public static final String BUILD_INFO = "BuildInfo";
-  public static final String PATHS = "Paths";
-  public static final String PATH = "Path";
-  public static final String VARIABLE = "Variable";
-  public static final String SCOPE = "Scope";
-
-  // column names for count statement
   public static final String COLUMN = "Column";
   public static final String COUNT_DEVICES = "count(devices)";
   public static final String COUNT_NODES = "count(nodes)";
@@ -448,15 +442,6 @@ public class ColumnHeaderConstant {
 
   public static final List<ColumnHeader> showPathSetTemplateHeaders =
       ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));
-
-  public static final List<ColumnHeader> countDevicesColumnHeaders =
-      ImmutableList.of(new ColumnHeader(COUNT_DEVICES, TSDataType.INT64));
-
-  public static final List<ColumnHeader> countNodesColumnHeaders =
-      ImmutableList.of(new ColumnHeader(COUNT_NODES, TSDataType.INT64));
-
-  public static final List<ColumnHeader> countLevelTimeSeriesColumnHeaders =
-      ImmutableList.of(
           new ColumnHeader(COLUMN, TSDataType.TEXT),
           new ColumnHeader(COUNT_TIMESERIES, TSDataType.INT64));
 
@@ -779,8 +764,33 @@ public class ColumnHeaderConstant {
           new ColumnHeader(PRIVILEGES, TSDataType.TEXT),
           new ColumnHeader(GRANT_OPTION, TSDataType.BOOLEAN));
 
+  public static final String ARCHIVE_LIFECYCLE_DAYS = "DataLifecycleDays";
+  public static final String ARCHIVE_PATH = "ArchivePath";
+  public static final String ARCHIVE_PENDING_TSFILE_COUNT = "PendingTsFileCount";
+  public static final String ARCHIVE_PENDING_TSFILE_SIZE = "PendingTsFileSize";
+  public static final String ARCHIVE_MOVED_TSFILE_COUNT = "ArchivedTsFileCount";
+  public static final String ARCHIVE_MOVED_TSFILE_SIZE = "ArchivedTsFileSize";
+  public static final String ARCHIVE_LAST_SCAN_TIME = "LastScanTime";
+  public static final String ARCHIVE_LAST_ARCHIVE_TIME = "LastArchiveTime";
+  public static final String ARCHIVE_LAST_ERROR = "LastError";
+
   public static final List<ColumnHeader> SHOW_CURRENT_USER_COLUMN_HEADERS =
       ImmutableList.of(new ColumnHeader(CURRENT_USER, TSDataType.STRING));
+
+  public static final List<ColumnHeader> SHOW_ARCHIVE_STATUS_COLUMN_HEADERS =
+      ImmutableList.of(
+          new ColumnHeader(DATABASE, TSDataType.TEXT),
+          new ColumnHeader(REGION_ID, TSDataType.TEXT),
+          new ColumnHeader(ARCHIVE_LIFECYCLE_DAYS, TSDataType.INT32),
+          new ColumnHeader(ARCHIVE_PATH, TSDataType.TEXT),
+          new ColumnHeader(STATUS, TSDataType.TEXT),
+          new ColumnHeader(ARCHIVE_PENDING_TSFILE_COUNT, TSDataType.INT64),
+          new ColumnHeader(ARCHIVE_PENDING_TSFILE_SIZE, TSDataType.INT64),
+          new ColumnHeader(ARCHIVE_MOVED_TSFILE_COUNT, TSDataType.INT64),
+          new ColumnHeader(ARCHIVE_MOVED_TSFILE_SIZE, TSDataType.INT64),
+          new ColumnHeader(ARCHIVE_LAST_SCAN_TIME, TSDataType.TIMESTAMP),
+          new ColumnHeader(ARCHIVE_LAST_ARCHIVE_TIME, TSDataType.TIMESTAMP),
+          new ColumnHeader(ARCHIVE_LAST_ERROR, TSDataType.TEXT));
 
   public static final List<ColumnHeader> SHOW_CURRENT_DATABASE_COLUMN_HEADERS =
       ImmutableList.of(new ColumnHeader(CURRENT_DATABASE, TSDataType.STRING));

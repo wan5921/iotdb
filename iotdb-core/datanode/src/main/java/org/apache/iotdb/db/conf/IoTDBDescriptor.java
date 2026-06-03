@@ -344,6 +344,15 @@ public class IoTDBDescriptor {
 
     conf.setQueryDir(
         FilePathUtils.regularizePath(conf.getSystemDir() + IoTDBConstant.QUERY_FOLDER_NAME));
+    conf.setDataLifecycleDays(
+        Integer.parseInt(
+            properties.getProperty(
+                "data_lifecycle_days", Integer.toString(conf.getDataLifecycleDays()))));
+    final String archivePath = properties.getProperty("archive_path", conf.getArchivePath());
+    conf.setArchivePath(
+        archivePath == null || archivePath.isEmpty()
+            ? archivePath
+            : FilePathUtils.regularizePath(archivePath));
     String[] defaultTierDirs = new String[conf.getTierDataDirs().length];
     for (int i = 0; i < defaultTierDirs.length; ++i) {
       defaultTierDirs[i] = String.join(",", conf.getTierDataDirs()[i]);
@@ -1161,15 +1170,6 @@ public class IoTDBDescriptor {
           conf.getPartitionTableRecoverMaxReadMBsPerSecond());
       partitionTableRecoverMaxReadMBsPerSecond = conf.getPartitionTableRecoverMaxReadMBsPerSecond();
     }
-    conf.setPartitionTableRecoverMaxReadMBsPerSecond(partitionTableRecoverMaxReadMBsPerSecond);
-
-    conf.setIncludeNullValueInWriteThroughputMetric(
-        Boolean.parseBoolean(
-            properties.getProperty(
-                "include_null_value_in_write_throughput_metric",
-                String.valueOf(conf.isIncludeNullValueInWriteThroughputMetric()))));
-
-    conf.setEnableDelayAnalyzer(
         Boolean.parseBoolean(
             properties.getProperty(
                 "enable_delay_analyzer",

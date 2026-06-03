@@ -145,7 +145,6 @@ statement
     | stopRepairDataStatement
     | setSystemStatusStatement
     | showVersionStatement
-    | showQueriesStatement
     | killQueryStatement
     | loadConfigurationStatement
     | setConfigurationStatement
@@ -681,10 +680,6 @@ showVersionStatement
     ;
 
 showQueriesStatement
-    : SHOW (QUERIES | QUERY PROCESSLIST)
-        (WHERE where=booleanExpression)?
-        (ORDER BY sortItem (',' sortItem)*)?
-        limitOffsetClause
     ;
 
 killQueryStatement
@@ -1533,7 +1528,6 @@ AS: 'AS';
 ASC: 'ASC';
 ASOF: 'ASOF';
 AT: 'AT';
-ATTRIBUTE: 'ATTRIBUTE';
 AUTH: 'AUTH';
 AUTHORIZATION: 'AUTHORIZATION';
 BEGIN: 'BEGIN';

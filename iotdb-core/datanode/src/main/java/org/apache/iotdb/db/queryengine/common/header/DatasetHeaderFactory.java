@@ -81,10 +81,6 @@ public class DatasetHeaderFactory {
     return new DatasetHeader(ColumnHeaderConstant.showVersionColumnHeaders, true);
   }
 
-  public static DatasetHeader getLastQueryHeader() {
-    return new DatasetHeader(ColumnHeaderConstant.lastQueryColumnHeaders, false);
-  }
-
   public static DatasetHeader getShowClusterHeader() {
     return new DatasetHeader(ColumnHeaderConstant.showClusterColumnHeaders, true);
   }
@@ -273,6 +269,10 @@ public class DatasetHeaderFactory {
 
   public static DatasetHeader getShowCurrentUserHeader() {
     return new DatasetHeader(ColumnHeaderConstant.SHOW_CURRENT_USER_COLUMN_HEADERS, true);
+  }
+
+  public static DatasetHeader getShowArchiveStatusHeader() {
+    return new DatasetHeader(ColumnHeaderConstant.SHOW_ARCHIVE_STATUS_COLUMN_HEADERS, true);
   }
 
   public static DatasetHeader getShowCurrentDatabaseHeader() {

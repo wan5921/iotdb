@@ -96,7 +96,7 @@ utilityStatement
     | showQueries | showDiskUsage | showCurrentTimestamp | killQuery | grantWatermarkEmbedding
     | revokeWatermarkEmbedding | loadConfiguration | loadTimeseries | loadFile
     | removeFile | unloadFile | setSqlDialect | showCurrentSqlDialect | showCurrentUser
-    | repairDataPartitionTable
+    | showArchiveStatus | repairDataPartitionTable
     ;
 
 /**
@@ -1387,6 +1387,10 @@ showCurrentSqlDialect
 
 showCurrentUser
     : SHOW CURRENT_USER
+    ;
+
+showArchiveStatus
+    : SHOW ARCHIVE STATUS
     ;
 
 // attribute clauses

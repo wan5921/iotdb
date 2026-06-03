@@ -44,7 +44,7 @@ keyWords
     | AND
     | ANY
     | APPEND
-    | AS
+    | ARCHIVE
     | ASC
     | ATTRIBUTES
     | AVAILABLE
@@ -234,6 +234,7 @@ keyWords
     | STORAGE
     | START
     | STARTTIME
+    | STATUS
     | STATEFUL
     | STATELESS
     | STATEMENT
