@@ -25,14 +25,15 @@ jobs:
         cache: maven
     
     - name: Build with Maven
-      run: mvn clean package -pl distribution -am -DskipTests
+      run: mvn clean verify
     
     - name: Upload integration-test logs
       uses: actions/upload-artifact@v4
-      if: failure()
+      if: always()
       with:
         name: integration-test-logs-${{ matrix.os }}
         path: |
+          integration-test/target/log/
           **/target/surefire-reports/
           **/target/failsafe-reports/
           **/logs/

@@ -1,0 +1,48 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index cf531fa9b6..6d659222c3 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -25,14 +25,15 @@ jobs:
+         cache: maven
+     
+     - name: Build with Maven
+-      run: mvn clean package -pl distribution -am -DskipTests
++      run: mvn clean verify
+     
+     - name: Upload integration-test logs
+       uses: actions/upload-artifact@v4
+-      if: failure()
++      if: always()
+       with:
+         name: integration-test-logs-${{ matrix.os }}
+         path: |
++          integration-test/target/log/
+           **/target/surefire-reports/
+           **/target/failsafe-reports/
+           **/logs/
+diff --git a/Dockerfile b/Dockerfile
+index a70f5a22a8..d82022e716 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,13 +1,15 @@
+-FROM openjdk:11-slim
++FROM eclipse-temurin:11-jre-slim
++
++ARG IOTDB_VERSION=2.0.7-SNAPSHOT
+ 
+ WORKDIR /iotdb
+ 
+ # 复制并解压 IoTDB 发行包
+-COPY distribution/target/apache-iotdb-2.0.7-SNAPSHOT-all-bin.zip /iotdb/
+-RUN unzip -q apache-iotdb-2.0.7-SNAPSHOT-all-bin.zip && \
+-    rm apache-iotdb-2.0.7-SNAPSHOT-all-bin.zip && \
+-    mv apache-iotdb-2.0.7-SNAPSHOT/* . && \
+-    rmdir apache-iotdb-2.0.7-SNAPSHOT
++COPY distribution/target/apache-iotdb-${IOTDB_VERSION}-all-bin.zip /iotdb/
++RUN unzip -q apache-iotdb-${IOTDB_VERSION}-all-bin.zip && \
++    rm apache-iotdb-${IOTDB_VERSION}-all-bin.zip && \
++    mv apache-iotdb-${IOTDB_VERSION}/* . && \
++    rmdir apache-iotdb-${IOTDB_VERSION}
+ 
+ # 暴露 IoTDB 端口
+ EXPOSE 6667
