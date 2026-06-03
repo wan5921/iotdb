@@ -20,37 +20,7 @@
 package org.apache.iotdb.db.queryengine.plan.optimization;
 
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
-import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
-import org.apache.iotdb.db.queryengine.plan.analyze.Analysis;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public abstract class PlanOptimizer {
-
-  private final List<IOptimizerRule> rules;
-
-  protected PlanOptimizer() {
-    this.rules = new ArrayList<>();
-  }
-
-  protected PlanOptimizer(List<IOptimizerRule> rules) {
-    this.rules = rules != null ? new ArrayList<>(rules) : new ArrayList<>();
-  }
-
-  public void addRule(IOptimizerRule rule) {
-    if (rule != null) {
-      this.rules.add(rule);
-    }
-  }
-
-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
-    PlanNode result = plan;
-    for (IOptimizerRule rule : rules) {
-      result = rule.apply(result);
-    }
-    return doOptimize(result, analysis, context);
-  }
-
-  protected abstract PlanNode doOptimize(PlanNode plan, Analysis analysis, MPPQueryContext context);
+public interface IOptimizerRule {
+  PlanNode apply(PlanNode plan);
 }
