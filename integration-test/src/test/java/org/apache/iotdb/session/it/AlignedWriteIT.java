@@ -1,0 +1,211 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iotdb.session.it;
+
+import org.apache.iotdb.isession.ISession;
+import org.apache.iotdb.isession.SessionDataSet;
+import org.apache.iotdb.it.env.EnvFactory;
+import org.apache.iotdb.it.framework.IoTDBTestRunner;
+import org.apache.iotdb.itbase.category.ClusterIT;
+import org.apache.iotdb.itbase.category.LocalStandaloneIT;
+
+import org.apache.tsfile.enums.TSDataType;
+import org.apache.tsfile.file.metadata.enums.CompressionType;
+import org.apache.tsfile.file.metadata.enums.TSEncoding;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+@RunWith(IoTDBTestRunner.class)
+@Category({LocalStandaloneIT.class, ClusterIT.class})
+public class AlignedWriteIT {
+
+  private static final String DATABASE = "root.aligned_write";
+  private static final String DEVICE = DATABASE + ".d1";
+  private static final int ROW_COUNT = 2000;
+  private static final TestHelper TEST_HELPER = new TestHelper(DATABASE, DEVICE);
+
+  @Before
+  public void setUp() throws Exception {
+    EnvFactory.getEnv().initClusterEnvironment();
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    EnvFactory.getEnv().cleanClusterEnvironment();
+  }
+
+  @Test
+  public void sessionShouldReadAllInsertedAlignedRowsWithNulls() {
+    try (ISession session = EnvFactory.getEnv().getSessionConnection()) {
+      TEST_HELPER.createAlignedStorageGroup(session);
+      TEST_HELPER.insertRowsWithNulls(session, ROW_COUNT);
+      session.executeNonQueryStatement("flush");
+
+      assertEquals(ROW_COUNT, TEST_HELPER.queryRowCount(session, "select * from " + DEVICE));
+    } catch (Exception e) {
+      e.printStackTrace();
+      fail(e.getMessage());
+    }
+  }
+
+  @Test
+  public void explainAnalyzeShouldUseAlignedSeriesScanAndShowSelectStarCostMore() {
+    try (ISession session = EnvFactory.getEnv().getSessionConnection();
+        Connection connection = EnvFactory.getEnv().getConnection()) {
+      TEST_HELPER.createAlignedStorageGroup(session);
+      TEST_HELPER.insertRowsWithNulls(session, ROW_COUNT);
+      session.executeNonQueryStatement("flush");
+
+      ExplainAnalyzeResult selectAll =
+          TEST_HELPER.explainAnalyze(connection, "select * from " + DEVICE);
+      ExplainAnalyzeResult selectS1 =
+          TEST_HELPER.explainAnalyze(connection, "select s1 from " + DEVICE);
+
+      assertTrue(selectAll.output.contains("AlignedSeriesScan"));
+      assertTrue(selectS1.output.contains("AlignedSeriesScan"));
+      assertTrue(
+          "select * should read more chunk data than select s1, select * loadChunkActualIOSize="
+              + selectAll.loadChunkActualIOSize
+              + ", select s1 loadChunkActualIOSize="
+              + selectS1.loadChunkActualIOSize,
+          selectAll.loadChunkActualIOSize > selectS1.loadChunkActualIOSize);
+    } catch (Exception e) {
+      e.printStackTrace();
+      fail(e.getMessage());
+    }
+  }
+
+  private static final class TestHelper {
+
+    private static final Pattern CHUNK_IO_SIZE_PATTERN =
+        Pattern.compile("loadChunkActualIOSize:\\s*(\\d+)");
+
+    private final String database;
+    private final String device;
+    private final List<String> measurements = Arrays.asList("s1", "s2");
+    private final List<TSDataType> dataTypes =
+        Arrays.asList(TSDataType.INT64, TSDataType.INT64);
+    private final List<TSEncoding> encodings =
+        Arrays.asList(TSEncoding.RLE, TSEncoding.RLE);
+    private final List<CompressionType> compressors =
+        Arrays.asList(CompressionType.SNAPPY, CompressionType.SNAPPY);
+
+    private TestHelper(String database, String device) {
+      this.database = database;
+      this.device = device;
+    }
+
+    private void createAlignedStorageGroup(ISession session) throws Exception {
+      session.setStorageGroup(database);
+      session.createAlignedTimeseries(
+          device, measurements, dataTypes, encodings, compressors, null, null, null);
+    }
+
+    private void insertRowsWithNulls(ISession session, int rowCount) throws Exception {
+      List<Long> times = new ArrayList<>(rowCount);
+      List<List<String>> measurementsList = new ArrayList<>(rowCount);
+      List<List<TSDataType>> typesList = new ArrayList<>(rowCount);
+      List<List<Object>> valuesList = new ArrayList<>(rowCount);
+
+      for (int time = 0; time < rowCount; time++) {
+        times.add((long) time);
+        measurementsList.add(measurements);
+        typesList.add(dataTypes);
+
+        List<Object> values = new ArrayList<>(2);
+        switch (time % 3) {
+          case 0:
+            values.add((long) time);
+            values.add(null);
+            break;
+          case 1:
+            values.add(null);
+            values.add((long) time * 10);
+            break;
+          default:
+            values.add((long) time);
+            values.add((long) time * 10);
+            break;
+        }
+        valuesList.add(values);
+      }
+
+      session.insertAlignedRecordsOfOneDevice(
+          device, times, measurementsList, typesList, valuesList);
+    }
+
+    private long queryRowCount(ISession session, String sql) throws Exception {
+      SessionDataSet dataSet = session.executeQueryStatement(sql);
+      long rowCount = 0;
+      try {
+        while (dataSet.hasNext()) {
+          dataSet.next();
+          rowCount++;
+        }
+      } finally {
+        dataSet.closeOperationHandle();
+      }
+      return rowCount;
+    }
+
+    private ExplainAnalyzeResult explainAnalyze(Connection connection, String sql)
+        throws Exception {
+      StringBuilder output = new StringBuilder();
+      long loadChunkActualIOSize = 0;
+      try (Statement statement = connection.createStatement();
+          ResultSet resultSet = statement.executeQuery("explain analyze verbose " + sql)) {
+        while (resultSet.next()) {
+          String line = resultSet.getString(1);
+          output.append(line).append(System.lineSeparator());
+          Matcher matcher = CHUNK_IO_SIZE_PATTERN.matcher(line);
+          if (matcher.find()) {
+            loadChunkActualIOSize += Long.parseLong(matcher.group(1));
+          }
+        }
+      }
+      return new ExplainAnalyzeResult(output.toString(), loadChunkActualIOSize);
+    }
+  }
+
+  private static final class ExplainAnalyzeResult {
+    private final String output;
+    private final long loadChunkActualIOSize;
+
+    private ExplainAnalyzeResult(String output, long loadChunkActualIOSize) {
+      this.output = output;
+      this.loadChunkActualIOSize = loadChunkActualIOSize;
+    }
+  }
+}
