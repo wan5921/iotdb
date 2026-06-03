@@ -64,7 +64,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 /** <b>Optimization phase:</b> Logical plan planning. */
-public class PredicatePushDown implements PlanOptimizer {
+public class PredicatePushDown extends PlanOptimizer {
 
   @Override
   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {

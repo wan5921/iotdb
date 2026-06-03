@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,26 +20,11 @@
 package org.apache.iotdb.db.queryengine.plan.optimization;
 
 import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
-import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
-import org.apache.iotdb.db.queryengine.plan.analyze.Analysis;
 
-import java.util.ArrayList;
-import java.util.List;
+public class DummyOptimizerRule implements IOptimizerRule {
 
-public abstract class PlanOptimizer {
-
-  protected List<IOptimizerRule> rules;
-
-  public PlanOptimizer() {
-    this.rules = new ArrayList<>();
-    this.rules.add(new DummyOptimizerRule());
-  }
-
-  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
-    PlanNode result = plan;
-    for (IOptimizerRule rule : rules) {
-      result = rule.apply(result);
-    }
-    return result;
+  @Override
+  public PlanNode apply(PlanNode plan) {
+    return plan;
   }
 }

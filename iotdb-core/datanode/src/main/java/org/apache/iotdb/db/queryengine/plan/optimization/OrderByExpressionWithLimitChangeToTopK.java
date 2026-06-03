@@ -61,9 +61,10 @@ import static org.apache.iotdb.db.queryengine.plan.planner.plan.node.process.Top
  * <li>`LimitNode + OffsetNode + TransformNode/FillNode + MergeSortNode` ==> `LimitNode + OffsetNode
  *     + TransformNode/FillNode + TopKNode(where topValue = limitValue+offsetValue)`.
  */
-public class OrderByExpressionWithLimitChangeToTopK implements PlanOptimizer {
+public class OrderByExpressionWithLimitChangeToTopK extends PlanOptimizer {
 
-  @Override
+
+  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
     if (analysis.getTreeStatement().getType() != StatementType.QUERY) {
       return plan;
