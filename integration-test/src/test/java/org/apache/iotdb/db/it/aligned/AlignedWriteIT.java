@@ -1,0 +1,235 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iotdb.db.it.aligned;
+
+import org.apache.iotdb.isession.ISession;
+import org.apache.iotdb.isession.SessionDataSet;
+import org.apache.iotdb.it.env.EnvFactory;
+import org.apache.iotdb.it.framework.IoTDBTestRunner;
+import org.apache.iotdb.itbase.category.ClusterIT;
+import org.apache.iotdb.itbase.category.LocalStandaloneIT;
+import org.apache.iotdb.rpc.IoTDBConnectionException;
+import org.apache.iotdb.rpc.StatementExecutionException;
+
+import org.apache.tsfile.enums.TSDataType;
+import org.apache.tsfile.file.metadata.enums.CompressionType;
+import org.apache.tsfile.file.metadata.enums.TSEncoding;
+import org.apache.tsfile.read.common.Field;
+import org.apache.tsfile.read.common.RowRecord;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.experimental.categories.Category;
+import org.junit.runner.RunWith;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+@RunWith(IoTDBTestRunner.class)
+@Category({LocalStandaloneIT.class, ClusterIT.class})
+public class AlignedWriteIT {
+
+  private static final String STORAGE_GROUP = "root.aligned_sg";
+  private static final String DEVICE = STORAGE_GROUP + ".d1";
+
+  @Before
+  public void setUp() throws Exception {
+    EnvFactory.getEnv().initClusterEnvironment();
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    EnvFactory.getEnv().cleanClusterEnvironment();
+  }
+
+  private static class TestHelper {
+
+    private final ISession session;
+
+    TestHelper(ISession session) {
+      this.session = session;
+    }
+
+    void createAlignedStorageGroup(String storageGroup, String deviceId, List<String> measurements)
+        throws IoTDBConnectionException, StatementExecutionException {
+      session.setStorageGroup(storageGroup);
+      List<TSDataType> dataTypes = new ArrayList<>();
+      List<TSEncoding> encodings = new ArrayList<>();
+      List<CompressionType> compressors = new ArrayList<>();
+      for (int i = 0; i < measurements.size(); i++) {
+        dataTypes.add(TSDataType.INT64);
+        encodings.add(TSEncoding.GORILLA);
+        compressors.add(CompressionType.SNAPPY);
+      }
+      session.createAlignedTimeseries(
+          deviceId, measurements, dataTypes, encodings, compressors, null);
+    }
+
+    void insertAlignedRow(
+        String deviceId,
+        long timestamp,
+        List<String> measurements,
+        List<TSDataType> types,
+        List<Object> values)
+        throws IoTDBConnectionException, StatementExecutionException {
+      session.insertAlignedRecord(deviceId, timestamp, measurements, types, values);
+    }
+  }
+
+  @Test
+  public void testAlignedWriteWithNullValues() {
+    try (ISession session = EnvFactory.getEnv().getSessionConnection()) {
+      TestHelper helper = new TestHelper(session);
+      List<String> measurements = Arrays.asList("s1", "s2");
+      helper.createAlignedStorageGroup(STORAGE_GROUP, DEVICE, measurements);
+
+      List<TSDataType> types = Arrays.asList(TSDataType.INT64, TSDataType.INT64);
+
+      helper.insertAlignedRow(DEVICE, 1, measurements, types, Arrays.asList(100L, 200L));
+      helper.insertAlignedRow(DEVICE, 2, measurements, types, Arrays.asList(101L, null));
+      helper.insertAlignedRow(DEVICE, 3, measurements, types, Arrays.asList(null, 203L));
+      helper.insertAlignedRow(DEVICE, 4, measurements, types, Arrays.asList(null, null));
+      helper.insertAlignedRow(DEVICE, 5, measurements, types, Arrays.asList(105L, 205L));
+      helper.insertAlignedRow(DEVICE, 6, measurements, types, Arrays.asList(106L, null));
+      helper.insertAlignedRow(DEVICE, 7, measurements, types, Arrays.asList(null, 207L));
+      helper.insertAlignedRow(DEVICE, 8, measurements, types, Arrays.asList(108L, 208L));
+
+      session.executeNonQueryStatement("flush");
+
+      SessionDataSet dataSet =
+          session.executeQueryStatement("select * from " + DEVICE + " order by time");
+      int rowCount = 0;
+      while (dataSet.hasNext()) {
+        RowRecord record = dataSet.next();
+        rowCount++;
+      }
+      dataSet.closeOperationHandle();
+
+      assertEquals(8, rowCount);
+
+      SessionDataSet dataSetS1 =
+          session.executeQueryStatement("select s1 from " + DEVICE + " order by time");
+      int s1Count = 0;
+      while (dataSetS1.hasNext()) {
+        RowRecord record = dataSetS1.next();
+        s1Count++;
+      }
+      dataSetS1.closeOperationHandle();
+
+      assertEquals(8, s1Count);
+
+      SessionDataSet dataSetS2 =
+          session.executeQueryStatement("select s2 from " + DEVICE + " order by time");
+      int s2Count = 0;
+      while (dataSetS2.hasNext()) {
+        RowRecord record = dataSetS2.next();
+        s2Count++;
+      }
+      dataSetS2.closeOperationHandle();
+
+      assertEquals(8, s2Count);
+
+    } catch (Exception e) {
+      e.printStackTrace();
+      fail(e.getMessage());
+    }
+  }
+
+  @Test
+  public void testSelectStarVsSelectSinglePlanType() {
+    try (ISession session = EnvFactory.getEnv().getSessionConnection()) {
+      TestHelper helper = new TestHelper(session);
+      List<String> measurements = Arrays.asList("s1", "s2");
+      helper.createAlignedStorageGroup(STORAGE_GROUP, DEVICE, measurements);
+
+      List<TSDataType> types = Arrays.asList(TSDataType.INT64, TSDataType.INT64);
+
+      for (long t = 1; t <= 100; t++) {
+        List<Object> values = new ArrayList<>();
+        values.add(t % 7 == 0 ? null : t * 10L);
+        values.add(t % 5 == 0 ? null : t * 20L);
+        helper.insertAlignedRow(DEVICE, t, measurements, types, values);
+      }
+      session.executeNonQueryStatement("flush");
+
+      long startStar = System.nanoTime();
+      SessionDataSet starSet =
+          session.executeQueryStatement("select * from " + DEVICE);
+      int starRows = 0;
+      while (starSet.hasNext()) {
+        starSet.next();
+        starRows++;
+      }
+      starSet.closeOperationHandle();
+      long elapsedStar = System.nanoTime() - startStar;
+
+      long startSingle = System.nanoTime();
+      SessionDataSet singleSet =
+          session.executeQueryStatement("select s1 from " + DEVICE);
+      int singleRows = 0;
+      while (singleSet.hasNext()) {
+        singleSet.next();
+        singleRows++;
+      }
+      singleSet.closeOperationHandle();
+      long elapsedSingle = System.nanoTime() - startSingle;
+
+      assertEquals(starRows, singleRows);
+
+      SessionDataSet explainStarSet =
+          session.executeQueryStatement("explain select * from " + DEVICE);
+      StringBuilder starPlan = new StringBuilder();
+      while (explainStarSet.hasNext()) {
+        RowRecord record = explainStarSet.next();
+        for (Field field : record.getFields()) {
+          starPlan.append(field.toString()).append(" ");
+        }
+        starPlan.append("\n");
+      }
+      explainStarSet.closeOperationHandle();
+      assertTrue(
+          "SELECT * plan should contain AlignedSeriesScan",
+          starPlan.toString().contains("AlignedSeriesScan"));
+
+      SessionDataSet explainSingleSet =
+          session.executeQueryStatement("explain select s1 from " + DEVICE);
+      StringBuilder singlePlan = new StringBuilder();
+      while (explainSingleSet.hasNext()) {
+        RowRecord record = explainSingleSet.next();
+        for (Field field : record.getFields()) {
+          singlePlan.append(field.toString()).append(" ");
+        }
+        singlePlan.append("\n");
+      }
+      explainSingleSet.closeOperationHandle();
+      assertTrue(
+          "SELECT s1 plan should contain AlignedSeriesScan",
+          singlePlan.toString().contains("AlignedSeriesScan"));
+
+    } catch (Exception e) {
+      e.printStackTrace();
+      fail(e.getMessage());
+    }
+  }
+}
