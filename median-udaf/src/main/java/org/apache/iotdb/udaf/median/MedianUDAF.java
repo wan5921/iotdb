@@ -43,66 +43,46 @@ public class MedianUDAF implements AggregateFunction {
 
   static class MedianState implements State {
 
-    private PriorityQueue<Double> lowerHalf = new PriorityQueue<>(Collections.reverseOrder());
-    private PriorityQueue<Double> upperHalf = new PriorityQueue<>();
-
-    void addValue(double value) {
-      if (lowerHalf.isEmpty() || value <= lowerHalf.peek()) {
-        lowerHalf.offer(value);
-      } else {
-        upperHalf.offer(value);
-      }
-      rebalance();
-    }
-
-    void merge(MedianState other) {
-      for (double value : other.lowerHalf) {
-        addValue(value);
-      }
-      for (double value : other.upperHalf) {
-        addValue(value);
-      }
-    }
-
-    double getMedian() {
-      if (lowerHalf.size() == upperHalf.size()) {
-        return (lowerHalf.peek() + upperHalf.peek()) / 2.0;
-      }
-      return lowerHalf.peek();
-    }
-
-    boolean isEmpty() {
-      return lowerHalf.isEmpty() && upperHalf.isEmpty();
-    }
-
-    private void rebalance() {
-      if (lowerHalf.size() < upperHalf.size()) {
-        lowerHalf.offer(upperHalf.poll());
-      } else if (lowerHalf.size() - upperHalf.size() > 1) {
-        upperHalf.offer(lowerHalf.poll());
-      }
-    }
+    PriorityQueue<Double> maxHeap = new PriorityQueue<>(Collections.reverseOrder());
+    PriorityQueue<Double> minHeap = new PriorityQueue<>();
 
     @Override
     public void reset() {
-      lowerHalf.clear();
-      upperHalf.clear();
+      maxHeap.clear();
+      minHeap.clear();
+    }
+
+    public void add(double num) {
+      if (maxHeap.isEmpty() || num <= maxHeap.peek()) {
+        maxHeap.offer(num);
+      } else {
+        minHeap.offer(num);
+      }
+      balance();
+    }
+
+    private void balance() {
+      if (maxHeap.size() > minHeap.size() + 1) {
+        minHeap.offer(maxHeap.poll());
+      } else if (minHeap.size() > maxHeap.size()) {
+        maxHeap.offer(minHeap.poll());
+      }
     }
 
     @Override
     public byte[] serialize() {
-      try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-          DataOutputStream outputStream = new DataOutputStream(byteArrayOutputStream)) {
-        outputStream.writeInt(lowerHalf.size());
-        for (double value : lowerHalf) {
-          outputStream.writeDouble(value);
+      try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+          DataOutputStream dos = new DataOutputStream(bos)) {
+        dos.writeInt(maxHeap.size());
+        for (double val : maxHeap) {
+          dos.writeDouble(val);
         }
-        outputStream.writeInt(upperHalf.size());
-        for (double value : upperHalf) {
-          outputStream.writeDouble(value);
+        dos.writeInt(minHeap.size());
+        for (double val : minHeap) {
+          dos.writeDouble(val);
         }
-        outputStream.flush();
-        return byteArrayOutputStream.toByteArray();
+        dos.flush();
+        return bos.toByteArray();
       } catch (IOException e) {
         throw new UDFException("Failed to serialize MedianState", e);
       }
@@ -111,18 +91,23 @@ public class MedianUDAF implements AggregateFunction {
     @Override
     public void deserialize(byte[] bytes) {
       reset();
-      try (DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(bytes))) {
-        int lowerSize = inputStream.readInt();
-        for (int i = 0; i < lowerSize; i++) {
-          lowerHalf.offer(inputStream.readDouble());
+      try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+          DataInputStream dis = new DataInputStream(bis)) {
+        int maxHeapSize = dis.readInt();
+        for (int i = 0; i < maxHeapSize; i++) {
+          maxHeap.offer(dis.readDouble());
         }
-        int upperSize = inputStream.readInt();
-        for (int i = 0; i < upperSize; i++) {
-          upperHalf.offer(inputStream.readDouble());
+        int minHeapSize = dis.readInt();
+        for (int i = 0; i < minHeapSize; i++) {
+          minHeap.offer(dis.readDouble());
         }
       } catch (IOException e) {
         throw new UDFException("Failed to deserialize MedianState", e);
       }
+    }
+
+    public boolean isEmpty() {
+      return maxHeap.isEmpty() && minHeap.isEmpty();
     }
   }
 
@@ -132,13 +117,19 @@ public class MedianUDAF implements AggregateFunction {
     if (arguments.getArgumentsSize() != 1) {
       throw new UDFArgumentNotValidException("Median only accepts one column as input");
     }
-    validateInputType(arguments.getDataType(0));
+    if (arguments.getDataType(0) != Type.INT32
+        && arguments.getDataType(0) != Type.INT64
+        && arguments.getDataType(0) != Type.FLOAT
+        && arguments.getDataType(0) != Type.DOUBLE) {
+      throw new UDFArgumentNotValidException(
+          "Median only accepts INT32, INT64, FLOAT, DOUBLE as input");
+    }
     return new AggregateFunctionAnalysis.Builder().outputDataType(Type.DOUBLE).build();
   }
 
   @Override
   public void beforeStart(FunctionArguments arguments) throws UDFException {
-    inputType = arguments.getDataType(0);
+    this.inputType = arguments.getDataType(0);
   }
 
   @Override
@@ -148,33 +139,39 @@ public class MedianUDAF implements AggregateFunction {
 
   @Override
   public void addInput(State state, Record input) {
-    if (input.isNull(0)) {
-      return;
-    }
-    MedianState medianState = (MedianState) state;
-    switch (inputType) {
-      case INT32:
-        medianState.addValue(input.getInt(0));
-        break;
-      case INT64:
-        medianState.addValue(input.getLong(0));
-        break;
-      case FLOAT:
-        medianState.addValue(input.getFloat(0));
-        break;
-      case DOUBLE:
-        medianState.addValue(input.getDouble(0));
-        break;
-      default:
-        throw new UDFException("Median only accepts INT32, INT64, FLOAT, DOUBLE as input");
+    if (!input.isNull(0)) {
+      MedianState medianState = (MedianState) state;
+      double value;
+      switch (inputType) {
+        case INT32:
+          value = input.getInt(0);
+          break;
+        case INT64:
+          value = input.getLong(0);
+          break;
+        case FLOAT:
+          value = input.getFloat(0);
+          break;
+        case DOUBLE:
+          value = input.getDouble(0);
+          break;
+        default:
+          throw new UDFException("Median only accepts INT32, INT64, FLOAT, DOUBLE as input");
+      }
+      medianState.add(value);
     }
   }
 
   @Override
   public void combineState(State state, State rhs) {
     MedianState medianState = (MedianState) state;
-    MedianState rhsState = (MedianState) rhs;
-    medianState.merge(rhsState);
+    MedianState medianRhs = (MedianState) rhs;
+    for (double val : medianRhs.maxHeap) {
+      medianState.add(val);
+    }
+    for (double val : medianRhs.minHeap) {
+      medianState.add(val);
+    }
   }
 
   @Override
@@ -184,13 +181,13 @@ public class MedianUDAF implements AggregateFunction {
       resultValue.setNull();
       return;
     }
-    resultValue.setDouble(medianState.getMedian());
-  }
-
-  private void validateInputType(Type type) throws UDFArgumentNotValidException {
-    if (type != Type.INT32 && type != Type.INT64 && type != Type.FLOAT && type != Type.DOUBLE) {
-      throw new UDFArgumentNotValidException(
-          "Median only accepts INT32, INT64, FLOAT, DOUBLE as input");
+    
+    double median;
+    if (medianState.maxHeap.size() > medianState.minHeap.size()) {
+      median = medianState.maxHeap.peek();
+    } else {
+      median = (medianState.maxHeap.peek() + medianState.minHeap.peek()) / 2.0;
     }
+    resultValue.setDouble(median);
   }
 }
