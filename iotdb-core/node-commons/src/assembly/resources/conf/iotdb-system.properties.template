@@ -368,6 +368,20 @@ iot_consensus_v2_receiver_file_dirs=data/datanode/system/pipe/consensus/receiver
 iot_consensus_v2_deletion_file_dir=data/datanode/system/pipe/consensus/deletion
 
 ####################
+### Data Archive Configuration
+####################
+
+# Data lifecycle in days. If not configured or <= 0, data lifecycle and archive feature is disabled.
+# effectiveMode: restart
+# Datatype: int
+# data_lifecycle_days=-1
+
+# The directory where archived data is stored.
+# effectiveMode: restart
+# Datatype: String
+# archive_path=data/datanode/archive
+
+####################
 ### Metric Configuration
 ####################
 

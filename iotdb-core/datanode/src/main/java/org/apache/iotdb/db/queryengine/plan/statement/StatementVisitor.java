@@ -568,6 +568,11 @@ public abstract class StatementVisitor<R, C> {
     return visitStatement(showAINodesStatement, context);
   }
 
+  public R visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement, C context) {
+    return visitStatement(showArchiveStatusStatement, context);
+  }
+
   public R visitShowVersion(ShowVersionStatement showVersionStatement, C context) {
     return visitStatement(showVersionStatement, context);
   }

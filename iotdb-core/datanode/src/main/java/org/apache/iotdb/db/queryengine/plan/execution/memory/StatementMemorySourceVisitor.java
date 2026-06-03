@@ -43,6 +43,8 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowCurrentTimest
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.template.ShowPathsUsingTemplateStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
+import org.apache.iotdb.db.conf.IoTDBDescriptor;
 
 import org.apache.tsfile.common.conf.TSFileConfig;
 import org.apache.tsfile.enums.TSDataType;
@@ -191,6 +193,33 @@ public class StatementMemorySourceVisitor
 
     return new StatementMemorySource(
         getVersionResult(), context.getAnalysis().getRespDatasetHeader());
+  }
+
+  @Override
+  public StatementMemorySource visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement, StatementMemorySourceContext context) {
+    return new StatementMemorySource(
+        getArchiveStatusResult(), context.getAnalysis().getRespDatasetHeader());
+  }
+
+  public static TsBlock getArchiveStatusResult() {
+    List<TSDataType> outputDataTypes =
+        ColumnHeaderConstant.showArchiveStatusColumnHeaders.stream()
+            .map(ColumnHeader::getColumnType)
+            .collect(Collectors.toList());
+    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
+    tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
+    tsBlockBuilder
+        .getColumnBuilder(0)
+        .writeInt(IoTDBDescriptor.getInstance().getConfig().getDataLifecycleDays());
+    tsBlockBuilder
+        .getColumnBuilder(1)
+        .writeBinary(new Binary(IoTDBDescriptor.getInstance().getConfig().getArchivePath(), TSFileConfig.STRING_CHARSET));
+    tsBlockBuilder
+        .getColumnBuilder(2)
+        .writeLong(StorageEngine.getInstance().getArchivedFileCount());
+    tsBlockBuilder.declarePosition();
+    return tsBlockBuilder.build();
   }
 
   public static TsBlock getVersionResult() {

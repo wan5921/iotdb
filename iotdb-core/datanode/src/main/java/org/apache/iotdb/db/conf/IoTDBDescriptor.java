@@ -1078,6 +1078,13 @@ public class IoTDBDescriptor {
     // tmp filePath for sort operator
     conf.setSortTmpDir(properties.getProperty("sort_tmp_dir", conf.getSortTmpDir()));
 
+    // data archive configuration
+    conf.setDataLifecycleDays(
+        Integer.parseInt(
+            properties.getProperty(
+                "data_lifecycle_days", String.valueOf(conf.getDataLifecycleDays()))));
+    conf.setArchivePath(properties.getProperty("archive_path", conf.getArchivePath()));
+
     conf.setRateLimiterType(properties.getProperty("rate_limiter_type", conf.getRateLimiterType()));
 
     conf.setDataNodeSchemaCacheEvictionPolicy(

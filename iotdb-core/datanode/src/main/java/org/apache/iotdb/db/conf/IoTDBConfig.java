@@ -335,6 +335,12 @@ public class IoTDBConfig {
   private String sortTmpDir =
       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.TMP_FOLDER_NAME;
 
+  /** data lifecycle days. If not configured or <= 0, data lifecycle is disabled. */
+  private int dataLifecycleDays = -1;
+
+  /** The directory where archived data is stored */
+  private String archivePath = IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + "archive";
+
   /** Maximum MemTable number. Invalid when enableMemControl is true. */
   private int maxMemtableNumber = 0;
 
@@ -4296,6 +4302,22 @@ public class IoTDBConfig {
 
   public String getSortTmpDir() {
     return sortTmpDir;
+  }
+
+  public int getDataLifecycleDays() {
+    return dataLifecycleDays;
+  }
+
+  public void setDataLifecycleDays(int dataLifecycleDays) {
+    this.dataLifecycleDays = dataLifecycleDays;
+  }
+
+  public String getArchivePath() {
+    return archivePath;
+  }
+
+  public void setArchivePath(String archivePath) {
+    this.archivePath = archivePath;
   }
 
   public String getObjectStorageBucket() {

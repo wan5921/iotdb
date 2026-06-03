@@ -387,6 +387,10 @@ public interface AstVisitor<R, C> extends CommonQueryAstVisitor<R, C> {
     return visitStatement(node, context);
   }
 
+  default R visitShowArchiveStatus(ShowArchiveStatus node, C context) {
+    return visitStatement(node, context);
+  }
+
   default R visitShowStatement(ShowStatement node, C context) {
     return visitStatement(node, context);
   }

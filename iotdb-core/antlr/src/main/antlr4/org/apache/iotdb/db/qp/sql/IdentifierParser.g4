@@ -236,6 +236,7 @@ keyWords
     | STORAGE
     | START
     | STARTTIME
+    | STATUS
     | STATEFUL
     | STATELESS
     | STATEMENT

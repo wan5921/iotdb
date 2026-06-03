@@ -246,6 +246,7 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrent
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentTimestampTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentUserTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowVersionTask;
+import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowArchiveStatusTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.ShowConfigurationTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.TestConnectionTask;
 import org.apache.iotdb.db.queryengine.plan.execution.config.sys.pipe.ShowPipeTask;
@@ -1637,6 +1638,13 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
   public SettableFuture<ConfigTaskResult> showVersion() {
     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
     ShowVersionTask.buildTsBlock(future);
+    return future;
+  }
+
+  @Override
+  public SettableFuture<ConfigTaskResult> showArchiveStatus() {
+    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+    ShowArchiveStatusTask.buildTsBlock(future);
     return future;
   }
 

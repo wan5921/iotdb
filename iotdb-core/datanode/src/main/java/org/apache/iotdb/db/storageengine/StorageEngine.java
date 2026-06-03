@@ -156,6 +156,7 @@ public class StorageEngine implements IService {
 
   private ScheduledExecutorService seqMemtableTimedFlushCheckThread;
   private ScheduledExecutorService unseqMemtableTimedFlushCheckThread;
+  private ScheduledExecutorService tsFileArchiveThread;
 
   private final TsFileFlushPolicy fileFlushPolicy = new DirectFlushPolicy();
 
@@ -355,6 +356,35 @@ public class StorageEngine implements IService {
           CONFIG.getUnseqMemtableFlushCheckInterval(),
           TimeUnit.MILLISECONDS);
       LOGGER.info(StorageEngineMessages.UNSEQ_MEMTABLE_FLUSH_CHECK_THREAD_STARTED);
+    }
+    
+    // timed tsfile archive
+    if (CONFIG.getDataLifecycleDays() > 0) {
+      tsFileArchiveThread =
+          IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor("TsFile-Archive-Thread");
+      ScheduledExecutorUtil.safelyScheduleAtFixedRate(
+          tsFileArchiveThread,
+          this::timedArchiveTsFile,
+          0,
+          1,
+          TimeUnit.DAYS);
+      LOGGER.info("TsFile archive thread started");
+    }
+  }
+
+  public void addArchivedFileCount(long count) {
+    archivedFileCount.addAndGet(count);
+  }
+
+  public long getArchivedFileCount() {
+    return archivedFileCount.get();
+  }
+
+  private void timedArchiveTsFile() {
+    for (DataRegion dataRegion : dataRegionMap.values()) {
+      if (dataRegion != null) {
+        dataRegion.timedArchiveTsFile();
+      }
     }
   }
 
@@ -1095,6 +1125,7 @@ public class StorageEngine implements IService {
     stopTimedServiceAndThrow(seqMemtableTimedFlushCheckThread, "SeqMemtableTimedFlushCheckThread");
     stopTimedServiceAndThrow(
         unseqMemtableTimedFlushCheckThread, "UnseqMemtableTimedFlushCheckThread");
+    stopTimedServiceAndThrow(tsFileArchiveThread, "TsFile-Archive-Thread");
 
     LOGGER.info(StorageEngineMessages.STOP_ALL_TIMED_SERVICE_AND_RESTART);
 

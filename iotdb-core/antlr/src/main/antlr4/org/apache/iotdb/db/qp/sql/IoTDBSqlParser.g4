@@ -67,6 +67,8 @@ ddlStatement
     | getRegionId | getTimeSlotList | countTimeSlotList | getSeriesSlotList
     | migrateRegion | reconstructRegion | extendRegion | removeRegion  | removeDataNode | removeConfigNode | removeAINode
     | verifyConnection
+    // Archive
+    | showArchiveStatus
     // AINode
     | showAINodes | createModel | dropModel | showModels | showLoadedModels | showAIDevices
     | callInference | loadModel | unloadModel

@@ -1458,6 +1458,12 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   }
 
   @Override
+  public IConfigTask visitShowArchiveStatus(ShowArchiveStatus node, MPPQueryContext context) {
+    context.setQueryType(QueryType.READ);
+    return new ShowArchiveStatusTask();
+  }
+
+  @Override
   public IConfigTask visitShowVersion(ShowVersion node, MPPQueryContext context) {
     context.setQueryType(QueryType.READ);
     return new ShowVersionTask();

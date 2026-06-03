@@ -450,6 +450,8 @@ public interface IConfigTaskExecutor {
 
   SettableFuture<ConfigTaskResult> showVersion();
 
+  SettableFuture<ConfigTaskResult> showArchiveStatus();
+
   SettableFuture<ConfigTaskResult> showCurrentSqlDialect(String sqlDialect);
 
   SettableFuture<ConfigTaskResult> setSqlDialect(SqlDialect sqlDialect);

@@ -443,6 +443,12 @@ public class ColumnHeaderConstant {
           new ColumnHeader(VERSION, TSDataType.TEXT),
           new ColumnHeader(BUILD_INFO, TSDataType.TEXT));
 
+  public static final List<ColumnHeader> showArchiveStatusColumnHeaders =
+      ImmutableList.of(
+          new ColumnHeader("data_lifecycle_days", TSDataType.INT32),
+          new ColumnHeader("archive_path", TSDataType.TEXT),
+          new ColumnHeader("archived_file_count", TSDataType.INT64));
+
   public static final List<ColumnHeader> showPathsUsingTemplateHeaders =
       ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));
 

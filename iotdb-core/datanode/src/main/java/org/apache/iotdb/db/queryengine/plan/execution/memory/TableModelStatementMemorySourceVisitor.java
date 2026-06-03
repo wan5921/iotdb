@@ -38,6 +38,14 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.CountDevice;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Explain;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowDevice;
+import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowArchiveStatus;
+import org.apache.iotdb.db.queryengine.common.header.ColumnHeaderConstant;
+import org.apache.iotdb.commons.schema.column.ColumnHeader;
+import org.apache.iotdb.db.conf.IoTDBDescriptor;
+import org.apache.tsfile.common.conf.TSFileConfig;
+import org.apache.tsfile.utils.Binary;
+import org.apache.tsfile.read.common.block.TsBlockBuilder;
+import java.util.stream.Collectors;
 
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.block.TsBlock;
@@ -128,6 +136,13 @@ public class TableModelStatementMemorySourceVisitor
       final CountDevice node, final TableModelStatementMemorySourceContext context) {
     return new StatementMemorySource(
         node.getTsBlock(context.getAnalysis()), node.getDataSetHeader());
+  }
+
+  @Override
+  public StatementMemorySource visitShowArchiveStatus(
+      final ShowArchiveStatus node, final TableModelStatementMemorySourceContext context) {
+    return new StatementMemorySource(
+        StatementMemorySourceVisitor.getArchiveStatusResult(), context.getAnalysis().getRespDatasetHeader());
   }
 
   private List<String> mergeExplainResults(

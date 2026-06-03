@@ -3458,6 +3458,15 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
   }
 
   @Override
+  public Analysis visitShowArchiveStatus(
+      ShowArchiveStatusStatement showArchiveStatusStatement, MPPQueryContext context) {
+    Analysis analysis = new Analysis();
+    analysis.setStatement(showArchiveStatusStatement);
+    analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowArchiveStatusHeader());
+    return analysis;
+  }
+
+  @Override
   public Analysis visitShowVersion(
       ShowVersionStatement showVersionStatement, MPPQueryContext context) {
     Analysis analysis = new Analysis();

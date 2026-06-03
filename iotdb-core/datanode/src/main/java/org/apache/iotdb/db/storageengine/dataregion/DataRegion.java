@@ -2394,6 +2394,59 @@ public class DataRegion implements IDataRegionForQuery {
     WritingMetrics.getInstance().recordTimedFlushMemTableCount(count);
   }
 
+  public void timedArchiveTsFile() {
+    int dataLifecycleDays = config.getDataLifecycleDays();
+    if (dataLifecycleDays <= 0) {
+      return;
+    }
+    long archiveThresholdTime =
+        System.currentTimeMillis() - dataLifecycleDays * 24L * 60 * 60 * 1000L;
+    archiveTsFiles(true, archiveThresholdTime);
+    archiveTsFiles(false, archiveThresholdTime);
+  }
+
+  private void archiveTsFiles(boolean sequence, long archiveThresholdTime) {
+    List<TsFileResource> tsFileList = tsFileManager.getTsFileList(sequence);
+    List<TsFileResource> filesToArchive = new ArrayList<>();
+
+    for (TsFileResource resource : tsFileList) {
+      if (resource.isClosed() && resource.getFileEndTime() < archiveThresholdTime) {
+        filesToArchive.add(resource);
+      }
+    }
+
+    if (filesToArchive.isEmpty()) {
+      return;
+    }
+
+    String archivePath = config.getArchivePath();
+    File archiveDir = new File(archivePath);
+    if (!archiveDir.exists()) {
+      archiveDir.mkdirs();
+    }
+
+    writeLock("archiveTsFiles");
+    long count = 0;
+    try {
+      for (TsFileResource resource : filesToArchive) {
+        try {
+          resource.moveTo(archiveDir);
+          tsFileManager.remove(resource, sequence);
+          count++;
+          logger.info(
+              "Archived TsFile {} to {}", resource.getTsFile().getAbsolutePath(), archivePath);
+        } catch (IOException e) {
+          logger.error("Failed to archive TsFile {}", resource.getTsFile().getAbsolutePath(), e);
+        }
+      }
+    } finally {
+      writeUnlock();
+    }
+    if (count > 0) {
+      StorageEngine.getInstance().addArchivedFileCount(count);
+    }
+  }
+
   /** This method will be blocked until all tsfile processors are closed. */
   public void syncCloseAllWorkingTsFileProcessors() {
     try {

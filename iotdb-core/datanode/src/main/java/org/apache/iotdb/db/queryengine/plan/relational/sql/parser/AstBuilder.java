@@ -1693,6 +1693,12 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
   }
 
   @Override
+  public Node visitShowArchiveStatusStatement(
+      RelationalSqlParser.ShowArchiveStatusStatementContext ctx) {
+    return new ShowArchiveStatus();
+  }
+
+  @Override
   public Node visitShowQueriesStatement(RelationalSqlParser.ShowQueriesStatementContext ctx) {
     Optional<OrderBy> orderBy = Optional.empty();
     if (ctx.ORDER() != null) {

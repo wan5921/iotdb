@@ -875,6 +875,10 @@ STARTTIME
     : S T A R T T I M E
     ;
 
+STATUS
+    : S T A T U S
+    ;
+
 STATEFUL
     : S T A T E F U L
     ;
