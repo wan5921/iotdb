@@ -67,8 +67,6 @@ ddlStatement
     | getRegionId | getTimeSlotList | countTimeSlotList | getSeriesSlotList
     | migrateRegion | reconstructRegion | extendRegion | removeRegion  | removeDataNode | removeConfigNode | removeAINode
     | verifyConnection
-    // AINode
-    | showAINodes | createModel | dropModel | showModels | showLoadedModels | showAIDevices
     | callInference | loadModel | unloadModel
     // Quota
     | setSpaceQuota | showSpaceQuota | setThrottleQuota | showThrottleQuota
@@ -93,7 +91,7 @@ dclStatement
 utilityStatement
     : flush | clearCache | setConfiguration | settle | startRepairData | stopRepairData | explain
     | setSystemStatus | showVersion | showFlushInfo | showLockInfo | showQueryResource
-    | showQueries | showDiskUsage | showCurrentTimestamp | killQuery | grantWatermarkEmbedding
+    | showQueries | showDiskUsage | showCurrentTimestamp | showArchiveStatus | killQuery | grantWatermarkEmbedding
     | revokeWatermarkEmbedding | loadConfiguration | loadTimeseries | loadFile
     | removeFile | unloadFile | setSqlDialect | showCurrentSqlDialect | showCurrentUser
     | repairDataPartitionTable
@@ -1319,6 +1317,11 @@ showDiskUsage
 // Show Current Timestamp
 showCurrentTimestamp
     : SHOW CURRENT_TIMESTAMP
+    ;
+
+// Show Archive Status
+showArchiveStatus
+    : SHOW ARCHIVE STATUS
     ;
 
 // Kill Query

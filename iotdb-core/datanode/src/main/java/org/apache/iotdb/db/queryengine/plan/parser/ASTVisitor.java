@@ -246,11 +246,11 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.RepairDataPartitionTab
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.StopRepairDataStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.TestConnectionStatement;
@@ -1033,6 +1033,12 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
   @Override
   public Statement visitShowVersion(IoTDBSqlParser.ShowVersionContext ctx) {
     return new ShowVersionStatement();
+  }
+
+  // Show Archive Status
+  @Override
+  public Statement visitShowArchiveStatus(IoTDBSqlParser.ShowArchiveStatusContext ctx) {
+    return new ShowArchiveStatusStatement();
   }
 
   // Create Function
@@ -5117,11 +5123,6 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
   @Override
   public Statement visitShowCurrentTimestamp(IoTDBSqlParser.ShowCurrentTimestampContext ctx) {
     return new ShowCurrentTimestampStatement();
-  }
-
-  @Override
-  public Statement visitSetSqlDialect(IoTDBSqlParser.SetSqlDialectContext ctx) {
-    return new SetSqlDialectStatement(ctx.TABLE() == null ? SqlDialect.TREE : SqlDialect.TABLE);
   }
 
   @Override

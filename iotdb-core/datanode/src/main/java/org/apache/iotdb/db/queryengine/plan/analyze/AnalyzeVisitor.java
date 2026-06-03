@@ -3458,15 +3458,6 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext> 
   }
 
   @Override
-  public Analysis visitShowVersion(
-      ShowVersionStatement showVersionStatement, MPPQueryContext context) {
-    Analysis analysis = new Analysis();
-    analysis.setRealStatement(showVersionStatement);
-    analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowVersionHeader());
-    analysis.setFinishQueryAfterAnalyze(true);
-    return analysis;
-  }
-
   private Analysis visitSchemaNodeManagementPartition(
       ShowStatement statement, PartialPath path, PathPatternTree scope, DatasetHeader header) {
     Analysis analysis = new Analysis();

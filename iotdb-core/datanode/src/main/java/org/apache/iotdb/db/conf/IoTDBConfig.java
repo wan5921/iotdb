@@ -253,6 +253,12 @@ public class IoTDBConfig {
   private String queryDir =
       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.QUERY_FOLDER_NAME;
 
+  /** Data lifecycle in days. TsFiles older than this will be archived. 0 means disabled. */
+  private long dataLifecycleDays = 0;
+
+  /** Archive path for expired TsFiles. If empty, archiving is disabled. */
+  private String archivePath = "";
+
   /** External lib directory, stores user-uploaded JAR files */
   private String extDir = IoTDBConstant.EXT_FOLDER_NAME;
 
@@ -334,12 +340,6 @@ public class IoTDBConfig {
   /** temp result directory for sortOperator */
   private String sortTmpDir =
       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.TMP_FOLDER_NAME;
-
-  /** Maximum MemTable number. Invalid when enableMemControl is true. */
-  private int maxMemtableNumber = 0;
-
-  /** The amount of data iterate each time in server */
-  private int batchSize = 100000;
 
   /** How many threads can concurrently flush. When <= 0, use CPU core number. */
   private int flushThreadCount = Runtime.getRuntime().availableProcessors();
@@ -1676,6 +1676,22 @@ public class IoTDBConfig {
 
   public void setQueryDir(String queryDir) {
     this.queryDir = queryDir;
+  }
+
+  public long getDataLifecycleDays() {
+    return dataLifecycleDays;
+  }
+
+  public void setDataLifecycleDays(long dataLifecycleDays) {
+    this.dataLifecycleDays = dataLifecycleDays;
+  }
+
+  public String getArchivePath() {
+    return archivePath;
+  }
+
+  public void setArchivePath(String archivePath) {
+    this.archivePath = archivePath;
   }
 
   public String getRatisDataRegionSnapshotDir() {
@@ -4300,22 +4316,6 @@ public class IoTDBConfig {
 
   public String getObjectStorageBucket() {
     throw new UnsupportedOperationException(DataNodeMiscMessages.OBJECT_STORAGE_NOT_SUPPORTED_YET);
-  }
-
-  public long getDataRatisPeriodicSnapshotInterval() {
-    return dataRatisPeriodicSnapshotInterval;
-  }
-
-  public void setDataRatisPeriodicSnapshotInterval(long dataRatisPeriodicSnapshotInterval) {
-    this.dataRatisPeriodicSnapshotInterval = dataRatisPeriodicSnapshotInterval;
-  }
-
-  public long getSchemaRatisPeriodicSnapshotInterval() {
-    return schemaRatisPeriodicSnapshotInterval;
-  }
-
-  public void setSchemaRatisPeriodicSnapshotInterval(long schemaRatisPeriodicSnapshotInterval) {
-    this.schemaRatisPeriodicSnapshotInterval = schemaRatisPeriodicSnapshotInterval;
   }
 
   public int getRatisTransferLeaderTimeoutMs() {

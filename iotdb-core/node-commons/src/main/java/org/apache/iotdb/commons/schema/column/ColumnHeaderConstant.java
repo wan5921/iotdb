@@ -443,12 +443,6 @@ public class ColumnHeaderConstant {
           new ColumnHeader(VERSION, TSDataType.TEXT),
           new ColumnHeader(BUILD_INFO, TSDataType.TEXT));
 
-  public static final List<ColumnHeader> showPathsUsingTemplateHeaders =
-      ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));
-
-  public static final List<ColumnHeader> showPathSetTemplateHeaders =
-      ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));
-
   public static final List<ColumnHeader> countDevicesColumnHeaders =
       ImmutableList.of(new ColumnHeader(COUNT_DEVICES, TSDataType.INT64));
 

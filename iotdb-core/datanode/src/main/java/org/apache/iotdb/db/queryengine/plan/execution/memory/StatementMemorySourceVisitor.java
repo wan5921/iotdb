@@ -43,8 +43,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowCurrentTimest
 import org.apache.iotdb.db.queryengine.plan.statement.metadata.template.ShowPathsUsingTemplateStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
-
-import org.apache.tsfile.common.conf.TSFileConfig;
 import org.apache.tsfile.enums.TSDataType;
 import org.apache.tsfile.read.common.block.TsBlock;
 import org.apache.tsfile.read.common.block.TsBlockBuilder;
@@ -193,33 +191,6 @@ public class StatementMemorySourceVisitor
         getVersionResult(), context.getAnalysis().getRespDatasetHeader());
   }
 
-  public static TsBlock getVersionResult() {
-    List<TSDataType> outputDataTypes =
-        ColumnHeaderConstant.showVersionColumnHeaders.stream()
-            .map(ColumnHeader::getColumnType)
-            .collect(Collectors.toList());
-    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
-    tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
-    tsBlockBuilder
-        .getColumnBuilder(0)
-        .writeBinary(new Binary(IoTDBConstant.VERSION, TSFileConfig.STRING_CHARSET));
-    tsBlockBuilder
-        .getColumnBuilder(1)
-        .writeBinary(new Binary(IoTDBConstant.BUILD_INFO, TSFileConfig.STRING_CHARSET));
-    tsBlockBuilder.declarePosition();
-    return tsBlockBuilder.build();
-  }
-
-  @Override
-  public StatementMemorySource visitCountNodes(
-      CountNodesStatement countStatement, StatementMemorySourceContext context) {
-    List<TSDataType> outputDataTypes =
-        ColumnHeaderConstant.countNodesColumnHeaders.stream()
-            .map(ColumnHeader::getColumnType)
-            .collect(Collectors.toList());
-    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
-    Set<String> matchedChildNodes =
-        context.getAnalysis().getMatchedNodes().stream()
             .map(TSchemaNode::getNodeName)
             .collect(Collectors.toSet());
     tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);

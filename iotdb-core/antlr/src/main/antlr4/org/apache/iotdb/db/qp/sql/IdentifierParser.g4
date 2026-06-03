@@ -44,6 +44,7 @@ keyWords
     | AND
     | ANY
     | APPEND
+    | ARCHIVE
     | AS
     | ASC
     | ATTRIBUTES
@@ -236,9 +237,9 @@ keyWords
     | STORAGE
     | START
     | STARTTIME
-    | STATEFUL
     | STATELESS
     | STATEMENT
+    | STATUS
     | STOP
     | SUBSCRIPTION
     | SUBSCRIPTIONS

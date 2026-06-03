@@ -1458,12 +1458,6 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
   }
 
   @Override
-  public IConfigTask visitShowVersion(ShowVersion node, MPPQueryContext context) {
-    context.setQueryType(QueryType.READ);
-    return new ShowVersionTask();
-  }
-
-  @Override
   public IConfigTask visitShowVariables(ShowVariables node, MPPQueryContext context) {
     context.setQueryType(QueryType.READ);
     accessControl.checkUserGlobalSysPrivilege(context);

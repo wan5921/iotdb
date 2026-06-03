@@ -97,6 +97,10 @@ APPEND
     : A P P E N D
     ;
 
+ARCHIVE
+    : A R C H I V E
+    ;
+
 AS
     : A S
     ;
@@ -875,16 +879,16 @@ STARTTIME
     : S T A R T T I M E
     ;
 
-STATEFUL
-    : S T A T E F U L
-    ;
-
 STATELESS
     : S T A T E L E S S
     ;
 
 STATEMENT
     : S T A T E M E N T
+    ;
+
+STATUS
+    : S T A T U S
     ;
 
 STOP

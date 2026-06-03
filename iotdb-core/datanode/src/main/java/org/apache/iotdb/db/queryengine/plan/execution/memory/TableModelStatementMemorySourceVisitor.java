@@ -38,14 +38,6 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.CountDevice;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Explain;
 import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowDevice;
-
-import org.apache.tsfile.enums.TSDataType;
-import org.apache.tsfile.read.common.block.TsBlock;
-import org.apache.tsfile.utils.Pair;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.apache.iotdb.commons.conf.IoTDBConstant.BLANK;
@@ -136,13 +128,6 @@ public class TableModelStatementMemorySourceVisitor
     if (cteExplainResults.isEmpty()) {
       return mainExplainResult;
     }
-
-    List<String> analyzeResult = new ArrayList<>();
-    cteExplainResults.forEach(
-        (table, pair) -> {
-          analyzeResult.add(String.format("%s : '%s'", CTE_QUERY, table.getNode().getName()));
-          analyzeResult.addAll(pair.getRight());
-          analyzeResult.add(BLANK);
         });
     analyzeResult.add(MAIN_QUERY);
     analyzeResult.addAll(mainExplainResult);

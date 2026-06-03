@@ -1693,12 +1693,6 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
   }
 
   @Override
-  public Node visitShowQueriesStatement(RelationalSqlParser.ShowQueriesStatementContext ctx) {
-    Optional<OrderBy> orderBy = Optional.empty();
-    if (ctx.ORDER() != null) {
-      orderBy =
-          Optional.of(new OrderBy(getLocation(ctx.ORDER()), visit(ctx.sortItem(), SortItem.class)));
-    }
 
     Optional<Offset> offset = Optional.empty();
     if (ctx.limitOffsetClause().OFFSET() != null) {

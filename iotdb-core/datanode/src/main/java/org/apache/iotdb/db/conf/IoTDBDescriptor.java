@@ -344,6 +344,15 @@ public class IoTDBDescriptor {
 
     conf.setQueryDir(
         FilePathUtils.regularizePath(conf.getSystemDir() + IoTDBConstant.QUERY_FOLDER_NAME));
+
+    conf.setDataLifecycleDays(
+        Long.parseLong(
+            properties.getProperty(
+                "data_lifecycle_days", Long.toString(conf.getDataLifecycleDays()))));
+
+    conf.setArchivePath(
+        properties.getProperty("archive_path", conf.getArchivePath()));
+
     String[] defaultTierDirs = new String[conf.getTierDataDirs().length];
     for (int i = 0; i < defaultTierDirs.length; ++i) {
       defaultTierDirs[i] = String.join(",", conf.getTierDataDirs()[i]);
@@ -1078,13 +1087,6 @@ public class IoTDBDescriptor {
     // tmp filePath for sort operator
     conf.setSortTmpDir(properties.getProperty("sort_tmp_dir", conf.getSortTmpDir()));
 
-    conf.setRateLimiterType(properties.getProperty("rate_limiter_type", conf.getRateLimiterType()));
-
-    conf.setDataNodeSchemaCacheEvictionPolicy(
-        properties.getProperty(
-            "datanode_schema_cache_eviction_policy", conf.getDataNodeSchemaCacheEvictionPolicy()));
-
-    conf.setCacheEvictionMemoryComputationThreshold(
         Integer.parseInt(
             properties.getProperty(
                 "cache_eviction_memory_computation_threshold",

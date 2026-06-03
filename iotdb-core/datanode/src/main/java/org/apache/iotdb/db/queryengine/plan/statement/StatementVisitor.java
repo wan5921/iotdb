@@ -146,6 +146,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowConfigurationState
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
+import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
 import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
@@ -547,6 +548,10 @@ public abstract class StatementVisitor<R, C> {
     return visitStatement(showDiskUsageStatement, context);
   }
 
+  public R visitShowArchiveStatus(ShowArchiveStatusStatement showArchiveStatusStatement, C context) {
+    return visitStatement(showArchiveStatusStatement, context);
+  }
+
   public R visitShowRegion(ShowRegionStatement showRegionStatement, C context) {
     return visitStatement(showRegionStatement, context);
   }
@@ -568,11 +573,6 @@ public abstract class StatementVisitor<R, C> {
     return visitStatement(showAINodesStatement, context);
   }
 
-  public R visitShowVersion(ShowVersionStatement showVersionStatement, C context) {
-    return visitStatement(showVersionStatement, context);
-  }
-
-  public R visitCreateSchemaTemplate(
       CreateSchemaTemplateStatement createTemplateStatement, C context) {
     return visitStatement(createTemplateStatement, context);
   }

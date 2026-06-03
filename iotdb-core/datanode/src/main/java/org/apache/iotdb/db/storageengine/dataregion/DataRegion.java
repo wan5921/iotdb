@@ -218,6 +218,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -283,6 +284,17 @@ public class DataRegion implements IDataRegionForQuery {
 
   /** Data region has been deleted or not. */
   private volatile boolean deleted = false;
+
+  /** Archive status for tracking migration progress. */
+  private final Object archiveLock = new Object();
+
+  private volatile long archiveTotalFiles = 0;
+  private volatile long archiveArchivedFiles = 0;
+  private volatile long archiveLastArchivedFileSize = 0;
+  private volatile long archiveLastArchiveTime = 0;
+  private volatile long archiveTotalArchivedSize = 0;
+
+  private ScheduledExecutorService archiveThread;
 
   /** closeStorageGroupCondition is used to wait for all currently closing TsFiles to be done. */
   private final Object closeStorageGroupCondition = new Object();
@@ -467,6 +479,8 @@ public class DataRegion implements IDataRegionForQuery {
     }
 
     initDiskSelector();
+
+    startArchiveThread();
 
     this.metrics = new DataRegionMetrics(this);
     MetricService.getInstance().addMetricSet(metrics);
@@ -2394,59 +2408,6 @@ public class DataRegion implements IDataRegionForQuery {
     WritingMetrics.getInstance().recordTimedFlushMemTableCount(count);
   }
 
-  /** This method will be blocked until all tsfile processors are closed. */
-  public void syncCloseAllWorkingTsFileProcessors() {
-    try {
-      List<Future<?>> tsFileProcessorsClosingFutures = asyncCloseAllWorkingTsFileProcessors();
-      for (Future<?> f : tsFileProcessorsClosingFutures) {
-        if (f != null) {
-          f.get();
-        }
-      }
-    } catch (InterruptedException | ExecutionException e) {
-      logger.error(
-          "CloseFileNodeCondition error occurs while waiting for closing tsfile processors of {}",
-          databaseName + "-" + dataRegionIdString,
-          e);
-      Thread.currentThread().interrupt();
-    }
-  }
-
-  public void syncCloseWorkingTsFileProcessors(boolean sequence) {
-    try {
-      writeLock("syncCloseWorkingTsFileProcessors");
-      List<Future<?>> tsFileProcessorsClosingFutures = new ArrayList<>();
-      int count = 0;
-      try {
-        // to avoid concurrent modification problem, we need a new array list
-        for (TsFileProcessor tsFileProcessor :
-            new ArrayList<>(
-                sequence
-                    ? workSequenceTsFileProcessors.values()
-                    : workUnsequenceTsFileProcessors.values())) {
-          tsFileProcessorsClosingFutures.add(
-              asyncCloseOneTsFileProcessor(sequence, tsFileProcessor));
-          count++;
-        }
-      } finally {
-        writeUnlock();
-      }
-      WritingMetrics.getInstance().recordManualFlushMemTableCount(count);
-      for (Future<?> f : tsFileProcessorsClosingFutures) {
-        if (f != null) {
-          f.get();
-        }
-      }
-    } catch (InterruptedException | ExecutionException e) {
-      logger.error(
-          "CloseFileNodeCondition error occurs while waiting for closing tsfile processors of {}",
-          databaseName + "-" + dataRegionIdString,
-          e);
-      Thread.currentThread().interrupt();
-    }
-  }
-
-  private void waitClosingTsFileProcessorFinished() throws InterruptedException {
     long startTime = System.currentTimeMillis();
     logger.info(
         "Start to wait TsFiles to close, seq files: {}, unseq files: {}",
@@ -5060,6 +5021,7 @@ public class DataRegion implements IDataRegionForQuery {
     writeLock("markDeleted");
     try {
       deleted = true;
+      stopArchiveThread();
       releaseDirectBufferMemory();
       MetricService.getInstance().removeMetricSet(metrics);
       deletedCondition.signalAll();
@@ -5106,6 +5068,129 @@ public class DataRegion implements IDataRegionForQuery {
   /* Be careful, the thread that calls this method may not hold the write lock!!*/
   public void degradeFlushTimeMap(long timePartitionId) {
     lastFlushTimeMap.degradeLastFlushTime(timePartitionId);
+  }
+
+  private void startArchiveThread() {
+    long lifecycleDays = config.getDataLifecycleDays();
+    String archivePath = config.getArchivePath();
+    if (lifecycleDays <= 0 || archivePath.isEmpty()) {
+      return;
+    }
+    archiveThread =
+        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
+            databaseName + "-" + dataRegionIdString + "-Archive");
+    archiveThread.scheduleWithFixedDelay(
+        this::archiveExpiredTsFiles, 1, 1, TimeUnit.DAYS);
+  }
+
+  private void stopArchiveThread() {
+    if (archiveThread != null && !archiveThread.isShutdown()) {
+      archiveThread.shutdownNow();
+      try {
+        archiveThread.awaitTermination(10, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
+  }
+
+  private void archiveExpiredTsFiles() {
+    long lifecycleDays = config.getDataLifecycleDays();
+    String archivePath = config.getArchivePath();
+    if (lifecycleDays <= 0 || archivePath.isEmpty()) {
+      return;
+    }
+    long cutoffTime = CommonDateTimeUtils.currentTime() - lifecycleDays * 86400000L;
+    File archiveDir = new File(archivePath, databaseName + File.separator + dataRegionIdString);
+    if (!archiveDir.exists() && !archiveDir.mkdirs()) {
+      logger.warn("Failed to create archive directory: {}", archiveDir.getPath());
+      return;
+    }
+
+    long totalFiles = 0;
+    long archivedFiles = 0;
+    long totalArchivedSize = archiveTotalArchivedSize;
+
+    try {
+      for (TsFileResource resource : tsFileManager.getTsFileList(true)) {
+        totalFiles++;
+        if (resource.getFileEndTime() < cutoffTime && !resource.isDeleted()) {
+          try {
+            File srcFile = resource.getTsFile();
+            if (!srcFile.exists()) {
+              continue;
+            }
+            File destFile = new File(archiveDir, srcFile.getName());
+            Files.move(srcFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            long fileSize = destFile.length();
+            totalArchivedSize += fileSize;
+            archivedFiles++;
+            synchronized (archiveLock) {
+              archiveLastArchivedFileSize = fileSize;
+              archiveLastArchiveTime = CommonDateTimeUtils.currentTime();
+            }
+            logger.info("Archived TsFile: {} -> {}", srcFile.getPath(), destFile.getPath());
+          } catch (IOException e) {
+            logger.warn("Failed to archive TsFile: {}", resource.getTsFile().getPath(), e);
+          }
+        }
+      }
+      for (TsFileResource resource : tsFileManager.getTsFileList(false)) {
+        totalFiles++;
+        if (resource.getFileEndTime() < cutoffTime && !resource.isDeleted()) {
+          try {
+            File srcFile = resource.getTsFile();
+            if (!srcFile.exists()) {
+              continue;
+            }
+            File destFile = new File(archiveDir, srcFile.getName());
+            Files.move(srcFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            long fileSize = destFile.length();
+            totalArchivedSize += fileSize;
+            archivedFiles++;
+            synchronized (archiveLock) {
+              archiveLastArchivedFileSize = fileSize;
+              archiveLastArchiveTime = CommonDateTimeUtils.currentTime();
+            }
+            logger.info("Archived TsFile: {} -> {}", srcFile.getPath(), destFile.getPath());
+          } catch (IOException e) {
+            logger.warn("Failed to archive TsFile: {}", resource.getTsFile().getPath(), e);
+          }
+        }
+      }
+    } finally {
+      archiveTotalFiles = totalFiles;
+      archiveArchivedFiles = archivedFiles;
+      archiveTotalArchivedSize = totalArchivedSize;
+    }
+  }
+
+  public long getDataLifecycleDays() {
+    return config.getDataLifecycleDays();
+  }
+
+  public String getArchivePath() {
+    return config.getArchivePath();
+  }
+
+  public long getArchiveTotalFiles() {
+    return archiveTotalFiles;
+  }
+
+  public long getArchiveArchivedFiles() {
+    return archiveArchivedFiles;
+  }
+
+  public long getArchiveLastArchivedFileSize() {
+    return archiveLastArchivedFileSize;
+  }
+
+  public long getArchiveLastArchiveTime() {
+    return archiveLastArchiveTime;
+  }
+
+  public long getArchiveTotalArchivedSize() {
+    return archiveTotalArchivedSize;
   }
 
   public long getMemCost() {

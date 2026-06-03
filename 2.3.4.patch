@@ -1,0 +1,864 @@
+diff --git a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4 b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4
+index 54d53bab67..65a0353a77 100644
+--- a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4
++++ b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IdentifierParser.g4
+@@ -44,6 +44,7 @@ keyWords
+     | AND
+     | ANY
+     | APPEND
++    | ARCHIVE
+     | AS
+     | ASC
+     | ATTRIBUTES
+@@ -236,9 +237,9 @@ keyWords
+     | STORAGE
+     | START
+     | STARTTIME
+-    | STATEFUL
+     | STATELESS
+     | STATEMENT
++    | STATUS
+     | STOP
+     | SUBSCRIPTION
+     | SUBSCRIPTIONS
+diff --git a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4 b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4
+index 3e94667a2f..7b45d89af1 100644
+--- a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4
++++ b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/IoTDBSqlParser.g4
+@@ -67,8 +67,6 @@ ddlStatement
+     | getRegionId | getTimeSlotList | countTimeSlotList | getSeriesSlotList
+     | migrateRegion | reconstructRegion | extendRegion | removeRegion  | removeDataNode | removeConfigNode | removeAINode
+     | verifyConnection
+-    // AINode
+-    | showAINodes | createModel | dropModel | showModels | showLoadedModels | showAIDevices
+     | callInference | loadModel | unloadModel
+     // Quota
+     | setSpaceQuota | showSpaceQuota | setThrottleQuota | showThrottleQuota
+@@ -93,7 +91,7 @@ dclStatement
+ utilityStatement
+     : flush | clearCache | setConfiguration | settle | startRepairData | stopRepairData | explain
+     | setSystemStatus | showVersion | showFlushInfo | showLockInfo | showQueryResource
+-    | showQueries | showDiskUsage | showCurrentTimestamp | killQuery | grantWatermarkEmbedding
++    | showQueries | showDiskUsage | showCurrentTimestamp | showArchiveStatus | killQuery | grantWatermarkEmbedding
+     | revokeWatermarkEmbedding | loadConfiguration | loadTimeseries | loadFile
+     | removeFile | unloadFile | setSqlDialect | showCurrentSqlDialect | showCurrentUser
+     | repairDataPartitionTable
+@@ -1321,6 +1319,11 @@ showCurrentTimestamp
+     : SHOW CURRENT_TIMESTAMP
+     ;
+ 
++// Show Archive Status
++showArchiveStatus
++    : SHOW ARCHIVE STATUS
++    ;
++
+ // Kill Query
+ killQuery
+     : KILL (QUERY queryId=STRING_LITERAL | ALL QUERIES)
+diff --git a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4 b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4
+index 59bac72fc7..c9074e8b49 100644
+--- a/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4
++++ b/iotdb-core/antlr/src/main/antlr4/org/apache/iotdb/db/qp/sql/SqlLexer.g4
+@@ -97,6 +97,10 @@ APPEND
+     : A P P E N D
+     ;
+ 
++ARCHIVE
++    : A R C H I V E
++    ;
++
+ AS
+     : A S
+     ;
+@@ -875,10 +879,6 @@ STARTTIME
+     : S T A R T T I M E
+     ;
+ 
+-STATEFUL
+-    : S T A T E F U L
+-    ;
+-
+ STATELESS
+     : S T A T E L E S S
+     ;
+@@ -887,6 +887,10 @@ STATEMENT
+     : S T A T E M E N T
+     ;
+ 
++STATUS
++    : S T A T U S
++    ;
++
+ STOP
+     : S T O P
+     ;
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java
+index fbc817d4f6..777449fca0 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBConfig.java
+@@ -253,6 +253,12 @@ public class IoTDBConfig {
+   private String queryDir =
+       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.QUERY_FOLDER_NAME;
+ 
++  /** Data lifecycle in days. TsFiles older than this will be archived. 0 means disabled. */
++  private long dataLifecycleDays = 0;
++
++  /** Archive path for expired TsFiles. If empty, archiving is disabled. */
++  private String archivePath = "";
++
+   /** External lib directory, stores user-uploaded JAR files */
+   private String extDir = IoTDBConstant.EXT_FOLDER_NAME;
+ 
+@@ -335,12 +341,6 @@ public class IoTDBConfig {
+   private String sortTmpDir =
+       IoTDBConstant.DN_DEFAULT_DATA_DIR + File.separator + IoTDBConstant.TMP_FOLDER_NAME;
+ 
+-  /** Maximum MemTable number. Invalid when enableMemControl is true. */
+-  private int maxMemtableNumber = 0;
+-
+-  /** The amount of data iterate each time in server */
+-  private int batchSize = 100000;
+-
+   /** How many threads can concurrently flush. When <= 0, use CPU core number. */
+   private int flushThreadCount = Runtime.getRuntime().availableProcessors();
+ 
+@@ -1678,6 +1678,22 @@ public class IoTDBConfig {
+     this.queryDir = queryDir;
+   }
+ 
++  public long getDataLifecycleDays() {
++    return dataLifecycleDays;
++  }
++
++  public void setDataLifecycleDays(long dataLifecycleDays) {
++    this.dataLifecycleDays = dataLifecycleDays;
++  }
++
++  public String getArchivePath() {
++    return archivePath;
++  }
++
++  public void setArchivePath(String archivePath) {
++    this.archivePath = archivePath;
++  }
++
+   public String getRatisDataRegionSnapshotDir() {
+     return ratisDataRegionSnapshotDir;
+   }
+@@ -4302,22 +4318,6 @@ public class IoTDBConfig {
+     throw new UnsupportedOperationException(DataNodeMiscMessages.OBJECT_STORAGE_NOT_SUPPORTED_YET);
+   }
+ 
+-  public long getDataRatisPeriodicSnapshotInterval() {
+-    return dataRatisPeriodicSnapshotInterval;
+-  }
+-
+-  public void setDataRatisPeriodicSnapshotInterval(long dataRatisPeriodicSnapshotInterval) {
+-    this.dataRatisPeriodicSnapshotInterval = dataRatisPeriodicSnapshotInterval;
+-  }
+-
+-  public long getSchemaRatisPeriodicSnapshotInterval() {
+-    return schemaRatisPeriodicSnapshotInterval;
+-  }
+-
+-  public void setSchemaRatisPeriodicSnapshotInterval(long schemaRatisPeriodicSnapshotInterval) {
+-    this.schemaRatisPeriodicSnapshotInterval = schemaRatisPeriodicSnapshotInterval;
+-  }
+-
+   public int getRatisTransferLeaderTimeoutMs() {
+     return ratisTransferLeaderTimeoutMs;
+   }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java
+index 5debbb7197..bf07ed1989 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/conf/IoTDBDescriptor.java
+@@ -344,6 +344,15 @@ public class IoTDBDescriptor {
+ 
+     conf.setQueryDir(
+         FilePathUtils.regularizePath(conf.getSystemDir() + IoTDBConstant.QUERY_FOLDER_NAME));
++
++    conf.setDataLifecycleDays(
++        Long.parseLong(
++            properties.getProperty(
++                "data_lifecycle_days", Long.toString(conf.getDataLifecycleDays()))));
++
++    conf.setArchivePath(
++        properties.getProperty("archive_path", conf.getArchivePath()));
++
+     String[] defaultTierDirs = new String[conf.getTierDataDirs().length];
+     for (int i = 0; i < defaultTierDirs.length; ++i) {
+       defaultTierDirs[i] = String.join(",", conf.getTierDataDirs()[i]);
+@@ -1078,13 +1087,6 @@ public class IoTDBDescriptor {
+     // tmp filePath for sort operator
+     conf.setSortTmpDir(properties.getProperty("sort_tmp_dir", conf.getSortTmpDir()));
+ 
+-    conf.setRateLimiterType(properties.getProperty("rate_limiter_type", conf.getRateLimiterType()));
+-
+-    conf.setDataNodeSchemaCacheEvictionPolicy(
+-        properties.getProperty(
+-            "datanode_schema_cache_eviction_policy", conf.getDataNodeSchemaCacheEvictionPolicy()));
+-
+-    conf.setCacheEvictionMemoryComputationThreshold(
+         Integer.parseInt(
+             properties.getProperty(
+                 "cache_eviction_memory_computation_threshold",
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java
+index 18f15eea8f..55f3ed8f99 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/common/header/DatasetHeaderFactory.java
+@@ -81,10 +81,6 @@ public class DatasetHeaderFactory {
+     return new DatasetHeader(ColumnHeaderConstant.showVersionColumnHeaders, true);
+   }
+ 
+-  public static DatasetHeader getLastQueryHeader() {
+-    return new DatasetHeader(ColumnHeaderConstant.lastQueryColumnHeaders, false);
+-  }
+-
+   public static DatasetHeader getShowClusterHeader() {
+     return new DatasetHeader(ColumnHeaderConstant.showClusterColumnHeaders, true);
+   }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/analyze/AnalyzeVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/analyze/AnalyzeVisitor.java
+index 9d91a29d78..112df5079f 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/analyze/AnalyzeVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/analyze/AnalyzeVisitor.java
+@@ -3458,15 +3458,6 @@ public class AnalyzeVisitor extends StatementVisitor<Analysis, MPPQueryContext>
+   }
+ 
+   @Override
+-  public Analysis visitShowVersion(
+-      ShowVersionStatement showVersionStatement, MPPQueryContext context) {
+-    Analysis analysis = new Analysis();
+-    analysis.setRealStatement(showVersionStatement);
+-    analysis.setRespDatasetHeader(DatasetHeaderFactory.getShowVersionHeader());
+-    analysis.setFinishQueryAfterAnalyze(true);
+-    return analysis;
+-  }
+-
+   private Analysis visitSchemaNodeManagementPartition(
+       ShowStatement statement, PartialPath path, PathPatternTree scope, DatasetHeader header) {
+     Analysis analysis = new Analysis();
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TableConfigTaskVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TableConfigTaskVisitor.java
+index 827590e86a..293bd8cfa5 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TableConfigTaskVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/TableConfigTaskVisitor.java
+@@ -1457,12 +1457,6 @@ public class TableConfigTaskVisitor implements AstVisitor<IConfigTask, MPPQueryC
+     return new ShowCurrentDatabaseTask(context.getSession().getDatabaseName().orElse(null));
+   }
+ 
+-  @Override
+-  public IConfigTask visitShowVersion(ShowVersion node, MPPQueryContext context) {
+-    context.setQueryType(QueryType.READ);
+-    return new ShowVersionTask();
+-  }
+-
+   @Override
+   public IConfigTask visitShowVariables(ShowVariables node, MPPQueryContext context) {
+     context.setQueryType(QueryType.READ);
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/ClusterConfigTaskExecutor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/ClusterConfigTaskExecutor.java
+index 15a538b98b..70586ae52a 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/ClusterConfigTaskExecutor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/ClusterConfigTaskExecutor.java
+@@ -246,7 +246,6 @@ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrent
+ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentTimestampTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowCurrentUserTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.session.ShowVersionTask;
+-import org.apache.iotdb.db.queryengine.plan.execution.config.sys.ShowConfigurationTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.TestConnectionTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.pipe.ShowPipeTask;
+ import org.apache.iotdb.db.queryengine.plan.execution.config.sys.quota.ShowSpaceQuotaTask;
+@@ -1640,13 +1639,6 @@ public class ClusterConfigTaskExecutor implements IConfigTaskExecutor {
+     return future;
+   }
+ 
+-  @Override
+-  public SettableFuture<ConfigTaskResult> showCurrentSqlDialect(final String sqlDialect) {
+-    final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+-    ShowCurrentSqlDialectTask.buildTsBlock(sqlDialect, future);
+-    return future;
+-  }
+-
+   @Override
+   public SettableFuture<ConfigTaskResult> setSqlDialect(SqlDialect sqlDialect) {
+     final SettableFuture<ConfigTaskResult> future = SettableFuture.create();
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/IConfigTaskExecutor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/IConfigTaskExecutor.java
+index b45209aeff..5d187b5384 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/IConfigTaskExecutor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/config/executor/IConfigTaskExecutor.java
+@@ -450,8 +450,6 @@ public interface IConfigTaskExecutor {
+ 
+   SettableFuture<ConfigTaskResult> showVersion();
+ 
+-  SettableFuture<ConfigTaskResult> showCurrentSqlDialect(String sqlDialect);
+-
+   SettableFuture<ConfigTaskResult> setSqlDialect(SqlDialect sqlDialect);
+ 
+   SettableFuture<ConfigTaskResult> showCurrentUser(String currentUser);
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/StatementMemorySourceVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/StatementMemorySourceVisitor.java
+index 3e5ef4bd90..06f8294710 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/StatementMemorySourceVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/StatementMemorySourceVisitor.java
+@@ -43,8 +43,6 @@ import org.apache.iotdb.db.queryengine.plan.statement.metadata.ShowCurrentTimest
+ import org.apache.iotdb.db.queryengine.plan.statement.metadata.template.ShowPathsUsingTemplateStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ExplainStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+-
+-import org.apache.tsfile.common.conf.TSFileConfig;
+ import org.apache.tsfile.enums.TSDataType;
+ import org.apache.tsfile.read.common.block.TsBlock;
+ import org.apache.tsfile.read.common.block.TsBlockBuilder;
+@@ -193,33 +191,6 @@ public class StatementMemorySourceVisitor
+         getVersionResult(), context.getAnalysis().getRespDatasetHeader());
+   }
+ 
+-  public static TsBlock getVersionResult() {
+-    List<TSDataType> outputDataTypes =
+-        ColumnHeaderConstant.showVersionColumnHeaders.stream()
+-            .map(ColumnHeader::getColumnType)
+-            .collect(Collectors.toList());
+-    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
+-    tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
+-    tsBlockBuilder
+-        .getColumnBuilder(0)
+-        .writeBinary(new Binary(IoTDBConstant.VERSION, TSFileConfig.STRING_CHARSET));
+-    tsBlockBuilder
+-        .getColumnBuilder(1)
+-        .writeBinary(new Binary(IoTDBConstant.BUILD_INFO, TSFileConfig.STRING_CHARSET));
+-    tsBlockBuilder.declarePosition();
+-    return tsBlockBuilder.build();
+-  }
+-
+-  @Override
+-  public StatementMemorySource visitCountNodes(
+-      CountNodesStatement countStatement, StatementMemorySourceContext context) {
+-    List<TSDataType> outputDataTypes =
+-        ColumnHeaderConstant.countNodesColumnHeaders.stream()
+-            .map(ColumnHeader::getColumnType)
+-            .collect(Collectors.toList());
+-    TsBlockBuilder tsBlockBuilder = new TsBlockBuilder(outputDataTypes);
+-    Set<String> matchedChildNodes =
+-        context.getAnalysis().getMatchedNodes().stream()
+             .map(TSchemaNode::getNodeName)
+             .collect(Collectors.toSet());
+     tsBlockBuilder.getTimeColumnBuilder().writeLong(0L);
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/TableModelStatementMemorySourceVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/TableModelStatementMemorySourceVisitor.java
+index 39b771c45c..7131c0dd14 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/TableModelStatementMemorySourceVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/execution/memory/TableModelStatementMemorySourceVisitor.java
+@@ -38,14 +38,6 @@ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.AstVisitor;
+ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.CountDevice;
+ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.Explain;
+ import org.apache.iotdb.db.queryengine.plan.relational.sql.ast.ShowDevice;
+-
+-import org.apache.tsfile.enums.TSDataType;
+-import org.apache.tsfile.read.common.block.TsBlock;
+-import org.apache.tsfile.utils.Pair;
+-
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.List;
+ import java.util.Map;
+ 
+ import static org.apache.iotdb.commons.conf.IoTDBConstant.BLANK;
+@@ -136,13 +128,6 @@ public class TableModelStatementMemorySourceVisitor
+     if (cteExplainResults.isEmpty()) {
+       return mainExplainResult;
+     }
+-
+-    List<String> analyzeResult = new ArrayList<>();
+-    cteExplainResults.forEach(
+-        (table, pair) -> {
+-          analyzeResult.add(String.format("%s : '%s'", CTE_QUERY, table.getNode().getName()));
+-          analyzeResult.addAll(pair.getRight());
+-          analyzeResult.add(BLANK);
+         });
+     analyzeResult.add(MAIN_QUERY);
+     analyzeResult.addAll(mainExplainResult);
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java
+index b43e4693d5..c29f50bca1 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/parser/ASTVisitor.java
+@@ -246,11 +246,11 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.RepairDataPartitionTab
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetConfigurationStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.SetSystemStatusStatement;
+-import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
++import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.StopRepairDataStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.TestConnectionStatement;
+@@ -1035,6 +1035,12 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
+     return new ShowVersionStatement();
+   }
+ 
++  // Show Archive Status
++  @Override
++  public Statement visitShowArchiveStatus(IoTDBSqlParser.ShowArchiveStatusContext ctx) {
++    return new ShowArchiveStatusStatement();
++  }
++
+   // Create Function
+   @Override
+   public Statement visitCreateFunction(CreateFunctionContext ctx) {
+@@ -5119,11 +5125,6 @@ public class ASTVisitor extends IoTDBSqlParserBaseVisitor<Statement> {
+     return new ShowCurrentTimestampStatement();
+   }
+ 
+-  @Override
+-  public Statement visitSetSqlDialect(IoTDBSqlParser.SetSqlDialectContext ctx) {
+-    return new SetSqlDialectStatement(ctx.TABLE() == null ? SqlDialect.TREE : SqlDialect.TABLE);
+-  }
+-
+   @Override
+   public Statement visitShowCurrentSqlDialect(IoTDBSqlParser.ShowCurrentSqlDialectContext ctx) {
+     return new ShowCurrentSqlDialectStatement();
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/ast/AstVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/ast/AstVisitor.java
+index 7c311fa7f6..450c4d2b88 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/ast/AstVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/ast/AstVisitor.java
+@@ -387,10 +387,6 @@ public interface AstVisitor<R, C> extends CommonQueryAstVisitor<R, C> {
+     return visitStatement(node, context);
+   }
+ 
+-  default R visitShowStatement(ShowStatement node, C context) {
+-    return visitStatement(node, context);
+-  }
+-
+   default R visitShowQueriesStatement(ShowQueriesStatement node, C context) {
+     return visitShowStatement(node, context);
+   }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/parser/AstBuilder.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/parser/AstBuilder.java
+index 25d68eba6b..7e87088722 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/parser/AstBuilder.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/relational/sql/parser/AstBuilder.java
+@@ -1693,12 +1693,6 @@ public class AstBuilder extends RelationalSqlBaseVisitor<Node> {
+   }
+ 
+   @Override
+-  public Node visitShowQueriesStatement(RelationalSqlParser.ShowQueriesStatementContext ctx) {
+-    Optional<OrderBy> orderBy = Optional.empty();
+-    if (ctx.ORDER() != null) {
+-      orderBy =
+-          Optional.of(new OrderBy(getLocation(ctx.ORDER()), visit(ctx.sortItem(), SortItem.class)));
+-    }
+ 
+     Optional<Offset> offset = Optional.empty();
+     if (ctx.limitOffsetClause().OFFSET() != null) {
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementType.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementType.java
+index b40c644481..881bd0a206 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementType.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementType.java
+@@ -193,7 +193,6 @@ public enum StatementType {
+ 
+   FAST_LAST_QUERY,
+   SHOW_CONFIGURATION,
+-
+   CREATE_EXTERNAL_SERVICE,
+   START_EXTERNAL_SERVICE,
+   STOP_EXTERNAL_SERVICE,
+@@ -201,4 +200,6 @@ public enum StatementType {
+   SHOW_EXTERNAL_SERVICE,
+ 
+   SHOW_DISK_USAGE,
++
++  SHOW_ARCHIVE_STATUS,
+ }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java
+index 847e850c52..d0af703fbe 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/statement/StatementVisitor.java
+@@ -146,6 +146,7 @@ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowConfigurationState
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentSqlDialectStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowCurrentUserStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowDiskUsageStatement;
++import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowArchiveStatusStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowQueriesStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.ShowVersionStatement;
+ import org.apache.iotdb.db.queryengine.plan.statement.sys.StartRepairDataStatement;
+@@ -547,6 +548,10 @@ public abstract class StatementVisitor<R, C> {
+     return visitStatement(showDiskUsageStatement, context);
+   }
+ 
++  public R visitShowArchiveStatus(ShowArchiveStatusStatement showArchiveStatusStatement, C context) {
++    return visitStatement(showArchiveStatusStatement, context);
++  }
++
+   public R visitShowRegion(ShowRegionStatement showRegionStatement, C context) {
+     return visitStatement(showRegionStatement, context);
+   }
+@@ -568,11 +573,6 @@ public abstract class StatementVisitor<R, C> {
+     return visitStatement(showAINodesStatement, context);
+   }
+ 
+-  public R visitShowVersion(ShowVersionStatement showVersionStatement, C context) {
+-    return visitStatement(showVersionStatement, context);
+-  }
+-
+-  public R visitCreateSchemaTemplate(
+       CreateSchemaTemplateStatement createTemplateStatement, C context) {
+     return visitStatement(createTemplateStatement, context);
+   }
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
+index 93a04bf401..5c7261033d 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/storageengine/dataregion/DataRegion.java
+@@ -218,6 +218,7 @@ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Future;
++import java.util.concurrent.ScheduledExecutorService;
+ import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicInteger;
+@@ -284,6 +285,17 @@ public class DataRegion implements IDataRegionForQuery {
+   /** Data region has been deleted or not. */
+   private volatile boolean deleted = false;
+ 
++  /** Archive status for tracking migration progress. */
++  private final Object archiveLock = new Object();
++
++  private volatile long archiveTotalFiles = 0;
++  private volatile long archiveArchivedFiles = 0;
++  private volatile long archiveLastArchivedFileSize = 0;
++  private volatile long archiveLastArchiveTime = 0;
++  private volatile long archiveTotalArchivedSize = 0;
++
++  private ScheduledExecutorService archiveThread;
++
+   /** closeStorageGroupCondition is used to wait for all currently closing TsFiles to be done. */
+   private final Object closeStorageGroupCondition = new Object();
+ 
+@@ -468,6 +480,8 @@ public class DataRegion implements IDataRegionForQuery {
+ 
+     initDiskSelector();
+ 
++    startArchiveThread();
++
+     this.metrics = new DataRegionMetrics(this);
+     MetricService.getInstance().addMetricSet(metrics);
+   }
+@@ -2394,59 +2408,6 @@ public class DataRegion implements IDataRegionForQuery {
+     WritingMetrics.getInstance().recordTimedFlushMemTableCount(count);
+   }
+ 
+-  /** This method will be blocked until all tsfile processors are closed. */
+-  public void syncCloseAllWorkingTsFileProcessors() {
+-    try {
+-      List<Future<?>> tsFileProcessorsClosingFutures = asyncCloseAllWorkingTsFileProcessors();
+-      for (Future<?> f : tsFileProcessorsClosingFutures) {
+-        if (f != null) {
+-          f.get();
+-        }
+-      }
+-    } catch (InterruptedException | ExecutionException e) {
+-      logger.error(
+-          "CloseFileNodeCondition error occurs while waiting for closing tsfile processors of {}",
+-          databaseName + "-" + dataRegionIdString,
+-          e);
+-      Thread.currentThread().interrupt();
+-    }
+-  }
+-
+-  public void syncCloseWorkingTsFileProcessors(boolean sequence) {
+-    try {
+-      writeLock("syncCloseWorkingTsFileProcessors");
+-      List<Future<?>> tsFileProcessorsClosingFutures = new ArrayList<>();
+-      int count = 0;
+-      try {
+-        // to avoid concurrent modification problem, we need a new array list
+-        for (TsFileProcessor tsFileProcessor :
+-            new ArrayList<>(
+-                sequence
+-                    ? workSequenceTsFileProcessors.values()
+-                    : workUnsequenceTsFileProcessors.values())) {
+-          tsFileProcessorsClosingFutures.add(
+-              asyncCloseOneTsFileProcessor(sequence, tsFileProcessor));
+-          count++;
+-        }
+-      } finally {
+-        writeUnlock();
+-      }
+-      WritingMetrics.getInstance().recordManualFlushMemTableCount(count);
+-      for (Future<?> f : tsFileProcessorsClosingFutures) {
+-        if (f != null) {
+-          f.get();
+-        }
+-      }
+-    } catch (InterruptedException | ExecutionException e) {
+-      logger.error(
+-          "CloseFileNodeCondition error occurs while waiting for closing tsfile processors of {}",
+-          databaseName + "-" + dataRegionIdString,
+-          e);
+-      Thread.currentThread().interrupt();
+-    }
+-  }
+-
+-  private void waitClosingTsFileProcessorFinished() throws InterruptedException {
+     long startTime = System.currentTimeMillis();
+     logger.info(
+         "Start to wait TsFiles to close, seq files: {}, unseq files: {}",
+@@ -5060,6 +5021,7 @@ public class DataRegion implements IDataRegionForQuery {
+     writeLock("markDeleted");
+     try {
+       deleted = true;
++      stopArchiveThread();
+       releaseDirectBufferMemory();
+       MetricService.getInstance().removeMetricSet(metrics);
+       deletedCondition.signalAll();
+@@ -5108,6 +5070,129 @@ public class DataRegion implements IDataRegionForQuery {
+     lastFlushTimeMap.degradeLastFlushTime(timePartitionId);
+   }
+ 
++  private void startArchiveThread() {
++    long lifecycleDays = config.getDataLifecycleDays();
++    String archivePath = config.getArchivePath();
++    if (lifecycleDays <= 0 || archivePath.isEmpty()) {
++      return;
++    }
++    archiveThread =
++        IoTDBThreadPoolFactory.newSingleThreadScheduledExecutor(
++            databaseName + "-" + dataRegionIdString + "-Archive");
++    archiveThread.scheduleWithFixedDelay(
++        this::archiveExpiredTsFiles, 1, 1, TimeUnit.DAYS);
++  }
++
++  private void stopArchiveThread() {
++    if (archiveThread != null && !archiveThread.isShutdown()) {
++      archiveThread.shutdownNow();
++      try {
++        archiveThread.awaitTermination(10, TimeUnit.SECONDS);
++      } catch (InterruptedException e) {
++        Thread.currentThread().interrupt();
++      }
++    }
++  }
++
++  private void archiveExpiredTsFiles() {
++    long lifecycleDays = config.getDataLifecycleDays();
++    String archivePath = config.getArchivePath();
++    if (lifecycleDays <= 0 || archivePath.isEmpty()) {
++      return;
++    }
++    long cutoffTime = CommonDateTimeUtils.currentTime() - lifecycleDays * 86400000L;
++    File archiveDir = new File(archivePath, databaseName + File.separator + dataRegionIdString);
++    if (!archiveDir.exists() && !archiveDir.mkdirs()) {
++      logger.warn("Failed to create archive directory: {}", archiveDir.getPath());
++      return;
++    }
++
++    long totalFiles = 0;
++    long archivedFiles = 0;
++    long totalArchivedSize = archiveTotalArchivedSize;
++
++    try {
++      for (TsFileResource resource : tsFileManager.getTsFileList(true)) {
++        totalFiles++;
++        if (resource.getFileEndTime() < cutoffTime && !resource.isDeleted()) {
++          try {
++            File srcFile = resource.getTsFile();
++            if (!srcFile.exists()) {
++              continue;
++            }
++            File destFile = new File(archiveDir, srcFile.getName());
++            Files.move(srcFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
++            long fileSize = destFile.length();
++            totalArchivedSize += fileSize;
++            archivedFiles++;
++            synchronized (archiveLock) {
++              archiveLastArchivedFileSize = fileSize;
++              archiveLastArchiveTime = CommonDateTimeUtils.currentTime();
++            }
++            logger.info("Archived TsFile: {} -> {}", srcFile.getPath(), destFile.getPath());
++          } catch (IOException e) {
++            logger.warn("Failed to archive TsFile: {}", resource.getTsFile().getPath(), e);
++          }
++        }
++      }
++      for (TsFileResource resource : tsFileManager.getTsFileList(false)) {
++        totalFiles++;
++        if (resource.getFileEndTime() < cutoffTime && !resource.isDeleted()) {
++          try {
++            File srcFile = resource.getTsFile();
++            if (!srcFile.exists()) {
++              continue;
++            }
++            File destFile = new File(archiveDir, srcFile.getName());
++            Files.move(srcFile.toPath(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
++            long fileSize = destFile.length();
++            totalArchivedSize += fileSize;
++            archivedFiles++;
++            synchronized (archiveLock) {
++              archiveLastArchivedFileSize = fileSize;
++              archiveLastArchiveTime = CommonDateTimeUtils.currentTime();
++            }
++            logger.info("Archived TsFile: {} -> {}", srcFile.getPath(), destFile.getPath());
++          } catch (IOException e) {
++            logger.warn("Failed to archive TsFile: {}", resource.getTsFile().getPath(), e);
++          }
++        }
++      }
++    } finally {
++      archiveTotalFiles = totalFiles;
++      archiveArchivedFiles = archivedFiles;
++      archiveTotalArchivedSize = totalArchivedSize;
++    }
++  }
++
++  public long getDataLifecycleDays() {
++    return config.getDataLifecycleDays();
++  }
++
++  public String getArchivePath() {
++    return config.getArchivePath();
++  }
++
++  public long getArchiveTotalFiles() {
++    return archiveTotalFiles;
++  }
++
++  public long getArchiveArchivedFiles() {
++    return archiveArchivedFiles;
++  }
++
++  public long getArchiveLastArchivedFileSize() {
++    return archiveLastArchivedFileSize;
++  }
++
++  public long getArchiveLastArchiveTime() {
++    return archiveLastArchiveTime;
++  }
++
++  public long getArchiveTotalArchivedSize() {
++    return archiveTotalArchivedSize;
++  }
++
+   public long getMemCost() {
+     return dataRegionInfo.getMemCost();
+   }
+diff --git a/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties b/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties
+index 4015a4b2f3..03b5079a43 100644
+--- a/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties
++++ b/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties
+@@ -62,12 +62,15 @@ data_replication_factor=1
+ # dn_wal_dirs=data/datanode/wal
+ 
+ ####################
+-### Metric Configuration
++### Data Lifecycle Configuration
+ ####################
+ 
+-# cn_metric_reporter_list=
+-cn_metric_prometheus_reporter_port=9091
++# Data lifecycle in days. TsFiles older than this will be archived to archive_path.
++# 0 means disabled.
++# data_lifecycle_days=0
+ 
+-# dn_metric_reporter_list=
+-dn_metric_prometheus_reporter_port=9092
++# Archive path for expired TsFiles.
++# If empty, archiving is disabled.
++# archive_path=
+ 
++####################
+diff --git a/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties.template b/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties.template
+index 4d7b5bcea8..c787688ffa 100644
+--- a/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties.template
++++ b/iotdb-core/node-commons/src/assembly/resources/conf/iotdb-system.properties.template
+@@ -368,20 +368,6 @@ iot_consensus_v2_receiver_file_dirs=data/datanode/system/pipe/consensus/receiver
+ iot_consensus_v2_deletion_file_dir=data/datanode/system/pipe/consensus/deletion
+ 
+ ####################
+-### Metric Configuration
+-####################
+-
+-# The base64 encoded username for the prometheus port of both the ConfigNode and the DataNode.
+-# If left unset, the prometheus port can be accessed without authentication.
+-# effectiveMode: restart
+-# Datatype: String
+-metric_prometheus_reporter_username=
+-
+-# The base64 encoded password for the prometheus port of both the ConfigNode and the DataNode.
+-# effectiveMode: restart
+-# Datatype: String
+-metric_prometheus_reporter_password=
+-
+ # The reporters of metric module to report metrics
+ # If there are more than one reporter, please separate them by commas ",".
+ # Options: [JMX, PROMETHEUS]
+diff --git a/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java b/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java
+index 186f7daa68..2d463572fb 100644
+--- a/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java
++++ b/iotdb-core/node-commons/src/main/java/org/apache/iotdb/commons/schema/column/ColumnHeaderConstant.java
+@@ -443,12 +443,6 @@ public class ColumnHeaderConstant {
+           new ColumnHeader(VERSION, TSDataType.TEXT),
+           new ColumnHeader(BUILD_INFO, TSDataType.TEXT));
+ 
+-  public static final List<ColumnHeader> showPathsUsingTemplateHeaders =
+-      ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));
+-
+-  public static final List<ColumnHeader> showPathSetTemplateHeaders =
+-      ImmutableList.of(new ColumnHeader(PATHS, TSDataType.TEXT));
+-
+   public static final List<ColumnHeader> countDevicesColumnHeaders =
+       ImmutableList.of(new ColumnHeader(COUNT_DEVICES, TSDataType.INT64));
+ 
+diff --git a/iotdb-core/relational-grammar/src/main/antlr4/org/apache/iotdb/db/relational/grammar/sql/RelationalSql.g4 b/iotdb-core/relational-grammar/src/main/antlr4/org/apache/iotdb/db/relational/grammar/sql/RelationalSql.g4
+index f984e825fc..e53e92686f 100644
+--- a/iotdb-core/relational-grammar/src/main/antlr4/org/apache/iotdb/db/relational/grammar/sql/RelationalSql.g4
++++ b/iotdb-core/relational-grammar/src/main/antlr4/org/apache/iotdb/db/relational/grammar/sql/RelationalSql.g4
+@@ -155,7 +155,6 @@ statement
+     | showCurrentUserStatement
+     | showCurrentDatabaseStatement
+     | showCurrentTimestampStatement
+-
+     // auth Statement
+     | grantStatement
+     | revokeStatement
+@@ -732,10 +731,6 @@ showCurrentTimestampStatement
+     ;
+ 
+ showConfigurationStatement
+-    : SHOW (ALL)? CONFIGURATION (ON nodeId=INTEGER_VALUE)? (WITH DESC)?
+-    ;
+-
+-
+ // ------------------------------------------- Authority Statement -----------------------------------------------------
+ 
+ createUserStatement
+@@ -1492,7 +1487,7 @@ nonReserved
+     | CACHE | CALL | CALLED | CASCADE | CATALOG | CATALOGS | CHAR | CHARACTER | CHARSET | CLEAR | CLUSTER | CLUSTERID | COLUMN | COLUMNS | COMMENT | COMMIT | COMMITTED | CONDITION | CONDITIONAL | CONFIGNODES | CONFIGNODE | CONFIGURATION | CONNECTOR | CONSTANT | COPARTITION | COPY | COUNT | CURRENT
+     | DATA | DATABASE | DATABASES | DATANODE | DATANODES | DATASET | DATE | DAY | DEBUG | DECLARE | DEFAULT | DEFINE | DEFINER | DENY | DESC | DESCRIPTOR | DETAILS| DETERMINISTIC | DEVICES | DISTRIBUTED | DO | DOUBLE
+     | ELSEIF | EMPTY | ENCODING | ERROR | EXCLUDING | EXPLAIN | EXTRACTOR
+-    | FETCH | FIELD | FILTER | FINAL | FIRST | FLUSH | FOLLOWING | FORCEDLY | FORMAT | FUNCTION | FUNCTIONS
++    : ABSENT | ADD | ADMIN | AFTER | ALL | ANALYZE | ANY | ARRAY | ASC | AT | ATTRIBUTE | AUDIT | AUTH | AUTHORIZATION | AVAILABLE
+     | GRACE | GRANT | GRANTED | GRANTS | GRAPHVIZ | GROUPS
+     | HOUR | HYPERPARAMETERS
+     | INDEX | INDEXES | IF | IGNORE | IMMEDIATE | INCLUDING | INITIAL | INPUT | INTERVAL | INVOKER | IO | ITERATE | ISOLATION
+@@ -1511,7 +1506,7 @@ nonReserved
+     | UNBOUNDED | UNCOMMITTED | UNCONDITIONAL | UNIQUE | UNKNOWN | UNMATCHED | UNTIL | UPDATE | URI | URLS | USE | USED | USER | UTF16 | UTF32 | UTF8
+     | VALIDATE | VALUE | VARIABLES | VARIATION | VERBOSE | VERSION | VIEW
+     | WEEK | WHILE | WINDOW | WITHIN | WITHOUT | WORK | WRAPPER | WRITE
+-    | YEAR
++    | SECURITY | SHOW | SINK | SOME | SOURCE | START | STATS | STOP | SUBSCRIPTION | SUBSCRIPTIONS | SUBSET | SUBSTRING | SYSTEM
+     | ZONE
+     ;
+ 
+@@ -1533,7 +1528,6 @@ AS: 'AS';
+ ASC: 'ASC';
+ ASOF: 'ASOF';
+ AT: 'AT';
+-ATTRIBUTE: 'ATTRIBUTE';
+ AUTH: 'AUTH';
+ AUTHORIZATION: 'AUTHORIZATION';
+ BEGIN: 'BEGIN';
+@@ -1851,7 +1845,6 @@ SUBSCRIPTION: 'SUBSCRIPTION';
+ SUBSCRIPTIONS: 'SUBSCRIPTIONS';
+ SUBSET: 'SUBSET';
+ SUBSTRING: 'SUBSTRING';
+-SYSTEM: 'SYSTEM';
+ TABLE: 'TABLE';
+ TABLES: 'TABLES';
+ TABLESAMPLE: 'TABLESAMPLE';
