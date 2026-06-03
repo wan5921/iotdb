@@ -1,0 +1,95 @@
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java
+index 48ca03c341..f82fa4b961 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/AggregationPushDown.java
+@@ -77,7 +77,7 @@ import java.util.Set;
+ import static com.google.common.base.Preconditions.checkState;
+ import static org.apache.iotdb.calc.utils.constant.SqlConstant.COUNT_TIME;
+ 
+-public class AggregationPushDown implements PlanOptimizer {
++public class AggregationPushDown extends PlanOptimizer {
+ 
+   @Override
+   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java
+index 00d289c399..81b15a6a78 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/ColumnInjectionPushDown.java
+@@ -59,7 +59,7 @@ import java.util.List;
+  *             |              ->  SlidingWindowAggregation
+  *  SlidingWindowAggregation
+  */
+-public class ColumnInjectionPushDown implements PlanOptimizer {
++public class ColumnInjectionPushDown extends PlanOptimizer {
+ 
+   @Override
+   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java
+index c291a196b5..fb70c7ceba 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/LimitOffsetPushDown.java
+@@ -67,7 +67,7 @@ import java.util.concurrent.TimeUnit;
+  * <li>Only one scan node is included in the distributed plan. That is, only one single series or a
+  *     group of series under an aligned device is queried, and all queried data is in one region.
+  */
+-public class LimitOffsetPushDown implements PlanOptimizer {
++public class LimitOffsetPushDown extends PlanOptimizer {
+ 
+   @Override
+   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java
+index 5e28676757..5351d5d643 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/OrderByExpressionWithLimitChangeToTopK.java
+@@ -61,7 +61,7 @@ import static org.apache.iotdb.db.queryengine.plan.planner.plan.node.process.Top
+  * <li>`LimitNode + OffsetNode + TransformNode/FillNode + MergeSortNode` ==> `LimitNode + OffsetNode
+  *     + TransformNode/FillNode + TopKNode(where topValue = limitValue+offsetValue)`.
+  */
+-public class OrderByExpressionWithLimitChangeToTopK implements PlanOptimizer {
++public class OrderByExpressionWithLimitChangeToTopK extends PlanOptimizer {
+ 
+   @Override
+   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
+index 90d390f40b..f98346824f 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PlanOptimizer.java
+@@ -23,6 +23,21 @@ import org.apache.iotdb.commons.queryengine.plan.planner.plan.node.PlanNode;
+ import org.apache.iotdb.db.queryengine.common.MPPQueryContext;
+ import org.apache.iotdb.db.queryengine.plan.analyze.Analysis;
+ 
+-public interface PlanOptimizer {
+-  PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context);
+-}
++import java.util.ArrayList;
++import java.util.List;
++
++public abstract class PlanOptimizer {
++
++  protected final List<IOptimizerRule> rules = new ArrayList<>();
++
++  protected PlanOptimizer() {
++    rules.add(new DummyOptimizerRule());
++  }
++
++  public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
++    for (IOptimizerRule rule : rules) {
++      plan = rule.apply(plan);
++    }
++    return plan;
++  }
++}
+\ No newline at end of file
+diff --git a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java
+index b09d70792b..dcd0d367e8 100644
+--- a/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java
++++ b/iotdb-core/datanode/src/main/java/org/apache/iotdb/db/queryengine/plan/optimization/PredicatePushDown.java
+@@ -64,7 +64,7 @@ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ /** <b>Optimization phase:</b> Logical plan planning. */
+-public class PredicatePushDown implements PlanOptimizer {
++public class PredicatePushDown extends PlanOptimizer {
+ 
+   @Override
+   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {

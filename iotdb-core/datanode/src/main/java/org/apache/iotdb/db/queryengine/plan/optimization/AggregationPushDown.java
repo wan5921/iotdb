@@ -77,7 +77,7 @@ import java.util.Set;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.iotdb.calc.utils.constant.SqlConstant.COUNT_TIME;
 
-public class AggregationPushDown implements PlanOptimizer {
+public class AggregationPushDown extends PlanOptimizer {
 
   @Override
   public PlanNode optimize(PlanNode plan, Analysis analysis, MPPQueryContext context) {
